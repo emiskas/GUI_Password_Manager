@@ -1,0 +1,62 @@
+# Ignore SQLite database files
+*.sqlite
+*.sqlite3
+*.sqbpro
+
+# Ignore SQLite journal and temporary files
+*.sqlite-journal
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Ignore other database files and backups
+*.db
+*.db.backup
+
+# Ignore OS-generated files
+.DS_Store            # macOS
+Thumbs.db            # Windows
+desktop.ini          # Windows
+
+# Ignore Python-specific files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.env                # Environment variables
+.env.*
+.venv/               # Virtual environments
+
+# Ignore Node.js-specific files
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignore Logs
+*.log
+
+# Ignore IDE and editor files
+.idea/               # IntelliJ IDEA
+*.iml                # IntelliJ IDEA module files
+.vscode/             # Visual Studio Code
+*.sublime-project    # Sublime Text
+*.sublime-workspace  # Sublime Text
+
+# Ignore build artifacts
+dist/
+build/
+*.out
+*.o
+*.so
+*.exe
+*.dll
+
+# Ignore other temporary or backup files
+*.swp
+*.tmp
+*.bak
+*.~*
+
+# Ignore the .idea folder
+.idea/
