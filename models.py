@@ -1,8 +1,7 @@
-from sqlalchemy import Column, Integer, String
+from bcrypt import checkpw, gensalt, hashpw
+from sqlalchemy import Column, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from bcrypt import hashpw, gensalt, checkpw
 
 Base = declarative_base()
 
@@ -33,6 +32,7 @@ DATABASE_URL = "sqlite:///passwords.sqlite"
 
 engine = create_engine(DATABASE_URL, echo=True)
 SessionLocal = sessionmaker(bind=engine)
+
 
 def init_db():
     """Initialize the database."""
