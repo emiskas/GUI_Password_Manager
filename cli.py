@@ -1,9 +1,22 @@
 import argparse
+import os
+
+from cryptography.fernet import Fernet
+from dotenv import load_dotenv
 
 from models import Password, SessionLocal, init_db
 
-init_db()
+load_dotenv()
 
+key = os.getenv("PASSWORD_MANAGER_KEY")
+if not key:
+    raise EnvironmentError(
+        "Encryption key not found. Set the PASSWORD_MANAGER_KEY environment variable."
+    )
+
+cipher = Fernet(key.encode("utf-8"))
+
+init_db()
 session = SessionLocal()
 
 
@@ -11,10 +24,10 @@ def add_password(service_name, service_url, username, plain_password):
     """Add a new password entry to the database."""
     password = Password(
         service_name=service_name,
-        service_url=service_url,  # Accepts None if not provided
+        service_url=service_url,
         username=username,
     )
-    password.set_encrypted_password(plain_password)
+    password.set_encrypted_password(plain_password, cipher)
     session.add(password)
     session.commit()
     print(f"Password for {service_name} added successfully!")
@@ -26,10 +39,12 @@ def retrieve_password(service_name):
         session.query(Password).filter(Password.service_name == service_name).first()
     )
     if password:
+        decrypted_password = password.get_decrypted_password(cipher)
+
         print(f"Service: {password.service_name}")
         print(f"URL: {password.service_url}")
         print(f"Username: {password.username}")
-        print(f"Encrypted Password: {password.encrypted_password}")
+        print(f"Password: {decrypted_password}")
     else:
         print(f"No entry found for service: {service_name}")
 
