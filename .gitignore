@@ -60,3 +60,4 @@ build/
 
 # Ignore the .idea folder
 .idea/
+/.env
