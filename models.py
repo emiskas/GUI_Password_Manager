@@ -1,4 +1,4 @@
-from bcrypt import checkpw, gensalt, hashpw
+from cryptography.fernet import Fernet
 from sqlalchemy import Column, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -13,19 +13,15 @@ class Password(Base):
     service_name = Column(String(100), nullable=False)
     service_url = Column(String(200), nullable=True)
     username = Column(String(100), nullable=False)
-    encrypted_password = Column(String(128), nullable=False)
+    encrypted_password = Column(String(256), nullable=False)
 
-    def set_encrypted_password(self, plain_password):
-        """Hash and store the password."""
-        self.encrypted_password = hashpw(
-            plain_password.encode("utf-8"), gensalt()
-        ).decode("utf-8")
+    def set_encrypted_password(self, plain_password, cipher):
+        """Encrypt and store the password."""
+        self.encrypted_password = cipher.encrypt(plain_password.encode("utf-8"))
 
-    def check_encrypted_password(self, plain_password):
-        """Check the password against the stored hash."""
-        return checkpw(
-            plain_password.encode("utf-8"), self.encrypted_password.encode("utf-8")
-        )
+    def get_decrypted_password(self, cipher):
+        """Decrypt and return the password."""
+        return cipher.decrypt(self.encrypted_password).decode("utf-8")
 
 
 DATABASE_URL = "sqlite:///passwords.sqlite"
