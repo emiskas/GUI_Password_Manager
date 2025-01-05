@@ -34,6 +34,6 @@ DATABASE_URL = "sqlite:///passwords.sqlite"
 engine = create_engine(DATABASE_URL, echo=True)
 SessionLocal = sessionmaker(bind=engine)
 
-# Run this file to create the database
-if __name__ == "__main__":
+def init_db():
+    """Initialize the database."""
     Base.metadata.create_all(bind=engine)
