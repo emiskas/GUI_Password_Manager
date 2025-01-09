@@ -10,7 +10,6 @@ class Password(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     service_name = Column(String(100), nullable=False)
-    service_url = Column(String(200), nullable=True)
     username = Column(String(100), nullable=False)
     encrypted_password = Column(String(256), nullable=False)
 
