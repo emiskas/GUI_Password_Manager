@@ -32,11 +32,10 @@ def verify_master_password(input_password, encrypted_password, key):
         return False
 
 
-def add_password(service_name, service_url, username, plain_password, cipher):
+def add_password(service_name, username, plain_password, cipher):
     """Add a new password entry to the database."""
     password = Password(
         service_name=service_name,
-        service_url=service_url,
         username=username,
     )
     password.set_encrypted_password(plain_password, cipher)
@@ -54,7 +53,6 @@ def retrieve_password(service_name, cipher):
         decrypted_password = password.get_decrypted_password(cipher)
 
         print(f"Service: {password.service_name}")
-        print(f"URL: {password.service_url}")
         print(f"Username: {password.username}")
         print(f"Password: {decrypted_password}")
     else:
@@ -66,9 +64,7 @@ def list_passwords():
     passwords = session.query(Password).all()
     if passwords:
         for password in passwords:
-            print(
-                f"Service: {password.service_name}, Username: {password.username}, URL: {password.service_url}"
-            )
+            print(f"Service: {password.service_name}, Username: {password.username}")
     else:
         print("No passwords stored yet.")
 
@@ -91,7 +87,6 @@ def main():
     add_parser.add_argument("service_name", help="Name of the service")
     add_parser.add_argument("username", help="Username for the service")
     add_parser.add_argument("plain_password", help="Password for the service")
-    add_parser.add_argument("--service_url", help="URL of the service", default=None)
 
     # Retrieve command
     retrieve_parser = subparsers.add_parser("retrieve", help="Retrieve a password")
@@ -105,6 +100,15 @@ def main():
     setpass_parser.add_argument(
         "master_password", help="Master password for the password manager"
     )
+
+    # Delete command
+    delete_parser = subparsers.add_parser("delete", help="Delete a saved password")
+    delete_parser.add_argument("service_name", help="Name of the service to delete")
+
+    # Update command
+    update_parser = subparsers.add_parser("update", help="Update a saved password")
+    update_parser.add_argument("service_name", help="Name of the service to update")
+    update_parser.add_argument("new_password", help="New password for the service")
 
     # Parse arguments
     args = parser.parse_args()
@@ -144,11 +148,37 @@ def main():
         cipher = Fernet(encryption_key)
         add_password(
             args.service_name,
-            args.service_url,
             args.username,
             args.plain_password,
             cipher,
         )
+
+    elif args.command == "delete":
+        password = (
+            session.query(Password)
+            .filter(Password.service_name == args.service_name)
+            .first()
+        )
+        if password:
+            session.delete(password)
+            session.commit()
+            print(f"Password for {args.service_name} deleted successfully!")
+        else:
+            print(f"No entry found for service: {args.service_name}")
+
+    elif args.command == "update":
+        password = (
+            session.query(Password)
+            .filter(Password.service_name == args.service_name)
+            .first()
+        )
+        if password:
+            cipher = Fernet(encryption_key)
+            password.encrypted_password = cipher.encrypt(args.new_password.encode())
+            session.commit()
+            print(f"Password for {args.service_name} updated successfully!")
+        else:
+            print(f"No entry found for service: {args.service}")
 
     elif args.command == "retrieve":
         cipher = Fernet(encryption_key)
