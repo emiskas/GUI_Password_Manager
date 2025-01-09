@@ -121,6 +121,10 @@ def main():
         print("ENCRYPTION_KEY generated and saved.")
 
     if args.command == "setpass":
+        if os.getenv("ENCRYPTED_MASTER_PASSWORD"):
+            print("Master password already set.")
+            return
+
         set_master_password(args.master_password, encryption_key.encode())
         return
 
