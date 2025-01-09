@@ -77,6 +77,15 @@ def set_master_password(input_password, encryption_key):
     print("Master password set successfully!")
 
 
+def generate_password(length=16):
+    import random
+    import string
+
+    characters = string.ascii_letters + string.digits + string.punctuation
+
+    return "".join(random.choice(characters) for i in range(0, length))
+
+
 # CLI setup
 def main():
     parser = argparse.ArgumentParser(description="Password Manager CLI")
@@ -86,7 +95,8 @@ def main():
     add_parser = subparsers.add_parser("add", help="Add a new password")
     add_parser.add_argument("service_name", help="Name of the service")
     add_parser.add_argument("username", help="Username for the service")
-    add_parser.add_argument("plain_password", help="Password for the service")
+    add_parser.add_argument("plain_password", nargs="?", help="Password for the service")
+    add_parser.add_argument("--generate", action="store_true", help="Generate a random password")
 
     # Retrieve command
     retrieve_parser = subparsers.add_parser("retrieve", help="Retrieve a password")
@@ -108,7 +118,16 @@ def main():
     # Update command
     update_parser = subparsers.add_parser("update", help="Update a saved password")
     update_parser.add_argument("service_name", help="Name of the service to update")
-    update_parser.add_argument("new_password", help="New password for the service")
+    update_parser.add_argument("new_password", nargs="?", help="New password for the service")
+    update_parser.add_argument("--generate", action="store_true", help="Generate a random password")
+
+    # Generate command
+    generate_parser = subparsers.add_parser(
+        "generate", help="Generate a random password"
+    )
+    generate_parser.add_argument(
+        "--length", type=int, default=16, help="Length of the generated password"
+    )
 
     # Parse arguments
     args = parser.parse_args()
@@ -132,6 +151,11 @@ def main():
         set_master_password(args.master_password, encryption_key.encode())
         return
 
+    elif args.command == "generate":
+        generated_password = generate_password(args.length)
+        print(f"Generated password: {generated_password}")
+        return
+
     input_password = input("Enter your master password: ")
     stored_encrypted_password = os.getenv("ENCRYPTED_MASTER_PASSWORD")
     if stored_encrypted_password:
@@ -146,6 +170,12 @@ def main():
 
     if args.command == "add":
         cipher = Fernet(encryption_key)
+        if args.generate:
+            args.plain_password = generate_password()
+        elif not args.plain_password:
+            print("Error: You must provide a password or use '--generate' to create one.")
+            return
+
         add_password(
             args.service_name,
             args.username,
@@ -172,6 +202,8 @@ def main():
             .filter(Password.service_name == args.service_name)
             .first()
         )
+        if args.generate:
+            args.new_password = generate_password()
         if password:
             cipher = Fernet(encryption_key)
             password.encrypted_password = cipher.encrypt(args.new_password.encode())
