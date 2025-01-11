@@ -86,6 +86,67 @@ def generate_password(length=16):
     return "".join(random.choice(characters) for i in range(0, length))
 
 
+def export_passwords(passwords: list=None):
+    import datetime
+
+    if not passwords:
+        passwords = session.query(Password).all()
+
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+
+    if not os.path.exists(os.path.join(os.getcwd(), "backup")):
+        os.makedirs(os.path.join(os.getcwd(), "backup"))
+
+    path = os.path.join(os.getcwd(), "backup", f"{today}.txt")
+    with open(path, "w") as f:
+        for password in passwords:
+            f.write(f"Service: {password.service_name}, Username: {password.username}, Password: {password.encrypted_password}\n")
+
+
+def import_passwords(path, encryption_key):
+    if not path:
+        print("You must provide a path to the file.")
+        return
+
+    with open(path, "r") as f:
+        for line in f.readlines():
+            parts = line.strip().split(", ")
+            if len(parts) != 3:
+                print(f"Skipping invalid line: {line.strip()}")
+                continue
+
+            service = parts[0].split(": ")[1]
+            username = parts[1].split(": ")[1]
+            encrypted_password = parts[2].split(": ")[1]
+
+            if encrypted_password.startswith("b'") and encrypted_password.endswith("'"):
+                encrypted_password = encrypted_password[2:-1]
+
+            if (session.query(Password).filter(Password.service_name == service).first()
+                    and session.query(Password).filter(Password.username == username).first()):
+                continue
+
+            try:
+                encrypted_password_bytes = encrypted_password.encode("utf-8")
+
+                cipher = Fernet(encryption_key)
+                decrypted_password = cipher.decrypt(encrypted_password_bytes).decode("utf-8")
+
+                add_password(service, username, decrypted_password, cipher)
+                print(f"Imported password for {service}")
+
+            except Exception as e:
+                print(f"Error decrypting password for {service}: {str(e)}")
+                session.rollback()
+
+            finally:
+                try:
+                    session.commit()
+                except Exception as commit_error:
+                    print(f"Error committing changes: {commit_error}")
+                    session.rollback()
+
+
 # CLI setup
 def main():
     parser = argparse.ArgumentParser(description="Password Manager CLI")
@@ -128,6 +189,14 @@ def main():
     generate_parser.add_argument(
         "--length", type=int, default=16, help="Length of the generated password"
     )
+
+    # Export command
+    export_parser = subparsers.add_parser("export", help="Export passwords")
+    export_parser.add_argument("--passwords", nargs="*", help="Service names to export")
+
+    # Import command
+    import_parser = subparsers.add_parser("import", help="Import passwords")
+    import_parser.add_argument("path", help="Path to the file to import")
 
     # Parse arguments
     args = parser.parse_args()
@@ -182,6 +251,14 @@ def main():
             args.plain_password,
             cipher,
         )
+
+    elif args.command == "export":
+        export_passwords(args.passwords)
+        print("Passwords exported successfully!")
+
+    elif args.command == "import":
+        import_passwords(args.path, encryption_key)
+        print("Passwords imported successfully!")
 
     elif args.command == "delete":
         password = (
