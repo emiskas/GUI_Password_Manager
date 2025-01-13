@@ -1,5 +1,6 @@
 import argparse
 import os
+import datetime
 
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
@@ -86,6 +87,120 @@ def generate_password(length=16):
     return "".join(random.choice(characters) for i in range(0, length))
 
 
+def export_passwords(passwords: list = None, encryption_key=None):
+    try:
+        if not passwords:
+            try:
+                passwords = session.query(Password).all()
+            except Exception as e:
+                print(f"Error retrieving passwords from database: {str(e)}")
+                return
+
+        backup_dir = os.path.join(os.getcwd(), ".backup")
+        if not os.path.exists(backup_dir):
+            try:
+                os.makedirs(backup_dir)
+                print(f"Backup directory created at {backup_dir}")
+            except OSError as e:
+                print(f"Error creating .backup directory: {e}")
+                return
+
+        today = datetime.datetime.now().strftime("%Y-%m-%d")
+        path = os.path.join(backup_dir, f"{today}.txt")
+
+        with open(path, "w") as f:
+            for password in passwords:
+                try:
+                    content = f"Service: {password.service_name}, Username: {password.username}, Password: {password.encrypted_password.decode()}\n"
+                    f.write(content)
+                except Exception as write_error:
+                    print(
+                        f"Error writing password entry for service '{password.service_name}': {str(write_error)}"
+                    )
+                    continue
+
+        print(f"Passwords exported successfully to {path} (plain text)!")
+
+        cipher = Fernet(encryption_key)
+        try:
+            with open(path, "rb") as f:
+                file_data = f.read()
+
+            encrypted_data = cipher.encrypt(file_data)
+
+            with open(path, "wb") as f:
+                f.write(encrypted_data)
+
+            print(f"File encrypted successfully!")
+
+        except Exception as e:
+            print(f"Error during file encryption: {str(e)}")
+
+    except Exception as e:
+        print(f"Unexpected error occurred during export: {str(e)}")
+
+
+def import_passwords(path, encryption_key):
+    if not path:
+        print("You must provide a path to the file.")
+        return
+
+    try:
+        with open(path, "rb") as f:
+            encrypted_content = f.read()
+
+        cipher = Fernet(encryption_key)
+        try:
+            decrypted_content = cipher.decrypt(encrypted_content).decode("utf-8")
+
+            for line in decrypted_content.splitlines():
+                parts = line.strip().split(", ")
+                if len(parts) != 3:
+                    print(f"Skipping invalid line: {line.strip()}")
+                    continue
+
+                service = parts[0].split(": ")[1]
+                username = parts[1].split(": ")[1]
+                encrypted_password = parts[2].split(": ")[1]
+
+                if encrypted_password.startswith("b'") and encrypted_password.endswith(
+                    "'"
+                ):
+                    encrypted_password = encrypted_password[2:-1]
+
+                if (
+                    session.query(Password)
+                    .filter(Password.service_name == service)
+                    .first()
+                    and session.query(Password)
+                    .filter(Password.username == username)
+                    .first()
+                ):
+                    continue
+
+                try:
+                    encrypted_password_bytes = encrypted_password.encode("utf-8")
+                    decrypted_password = cipher.decrypt(
+                        encrypted_password_bytes
+                    ).decode("utf-8")
+
+                    add_password(service, username, decrypted_password, cipher)
+                    print(f"Imported password for {service}")
+
+                except Exception as e:
+                    print(f"Error decrypting password for {service}: {str(e)}")
+
+        except Exception as e:
+            print(f"Error decrypting file content: {str(e)}")
+
+    except FileNotFoundError:
+        print(f"Error: The file at {path} was not found.")
+    except IOError as e:
+        print(f"Error opening or reading the file {path}: {e}")
+    except Exception as e:
+        print(f"Unexpected error occurred during import: {str(e)}")
+
+
 # CLI setup
 def main():
     parser = argparse.ArgumentParser(description="Password Manager CLI")
@@ -95,8 +210,12 @@ def main():
     add_parser = subparsers.add_parser("add", help="Add a new password")
     add_parser.add_argument("service_name", help="Name of the service")
     add_parser.add_argument("username", help="Username for the service")
-    add_parser.add_argument("plain_password", nargs="?", help="Password for the service")
-    add_parser.add_argument("--generate", action="store_true", help="Generate a random password")
+    add_parser.add_argument(
+        "plain_password", nargs="?", help="Password for the service"
+    )
+    add_parser.add_argument(
+        "--generate", action="store_true", help="Generate a random password"
+    )
 
     # Retrieve command
     retrieve_parser = subparsers.add_parser("retrieve", help="Retrieve a password")
@@ -118,8 +237,12 @@ def main():
     # Update command
     update_parser = subparsers.add_parser("update", help="Update a saved password")
     update_parser.add_argument("service_name", help="Name of the service to update")
-    update_parser.add_argument("new_password", nargs="?", help="New password for the service")
-    update_parser.add_argument("--generate", action="store_true", help="Generate a random password")
+    update_parser.add_argument(
+        "new_password", nargs="?", help="New password for the service"
+    )
+    update_parser.add_argument(
+        "--generate", action="store_true", help="Generate a random password"
+    )
 
     # Generate command
     generate_parser = subparsers.add_parser(
@@ -128,6 +251,14 @@ def main():
     generate_parser.add_argument(
         "--length", type=int, default=16, help="Length of the generated password"
     )
+
+    # Export command
+    export_parser = subparsers.add_parser("export", help="Export passwords")
+    export_parser.add_argument("--passwords", nargs="*", help="Service names to export")
+
+    # Import command
+    import_parser = subparsers.add_parser("import", help="Import passwords")
+    import_parser.add_argument("path", help="Path to the file to import")
 
     # Parse arguments
     args = parser.parse_args()
@@ -173,7 +304,9 @@ def main():
         if args.generate:
             args.plain_password = generate_password()
         elif not args.plain_password:
-            print("Error: You must provide a password or use '--generate' to create one.")
+            print(
+                "Error: You must provide a password or use '--generate' to create one."
+            )
             return
 
         add_password(
@@ -182,6 +315,14 @@ def main():
             args.plain_password,
             cipher,
         )
+
+    elif args.command == "export":
+        export_passwords(args.passwords, encryption_key)
+        print("Passwords exported successfully!")
+
+    elif args.command == "import":
+        import_passwords(args.path, encryption_key)
+        print("Passwords imported successfully!")
 
     elif args.command == "delete":
         password = (
