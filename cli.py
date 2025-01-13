@@ -96,13 +96,13 @@ def export_passwords(passwords: list = None, encryption_key=None):
                 print(f"Error retrieving passwords from database: {str(e)}")
                 return
 
-        backup_dir = os.path.join(os.getcwd(), "backup")
+        backup_dir = os.path.join(os.getcwd(), ".backup")
         if not os.path.exists(backup_dir):
             try:
                 os.makedirs(backup_dir)
                 print(f"Backup directory created at {backup_dir}")
             except OSError as e:
-                print(f"Error creating backup directory: {e}")
+                print(f"Error creating .backup directory: {e}")
                 return
 
         today = datetime.datetime.now().strftime("%Y-%m-%d")
@@ -163,18 +163,26 @@ def import_passwords(path, encryption_key):
                 username = parts[1].split(": ")[1]
                 encrypted_password = parts[2].split(": ")[1]
 
-                if encrypted_password.startswith("b'") and encrypted_password.endswith("'"):
+                if encrypted_password.startswith("b'") and encrypted_password.endswith(
+                    "'"
+                ):
                     encrypted_password = encrypted_password[2:-1]
 
                 if (
-                    session.query(Password).filter(Password.service_name == service).first()
-                    and session.query(Password).filter(Password.username == username).first()
+                    session.query(Password)
+                    .filter(Password.service_name == service)
+                    .first()
+                    and session.query(Password)
+                    .filter(Password.username == username)
+                    .first()
                 ):
                     continue
 
                 try:
                     encrypted_password_bytes = encrypted_password.encode("utf-8")
-                    decrypted_password = cipher.decrypt(encrypted_password_bytes).decode("utf-8")
+                    decrypted_password = cipher.decrypt(
+                        encrypted_password_bytes
+                    ).decode("utf-8")
 
                     add_password(service, username, decrypted_password, cipher)
                     print(f"Imported password for {service}")

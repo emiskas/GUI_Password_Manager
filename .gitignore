@@ -62,5 +62,5 @@ build/
 .idea/
 /.env
 
-# Ignore the backup folder
+# Ignore the .backup folder
 .backup/
