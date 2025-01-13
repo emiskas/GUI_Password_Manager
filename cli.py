@@ -1,5 +1,6 @@
 import argparse
 import os
+import datetime
 
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
@@ -86,12 +87,8 @@ def generate_password(length=16):
     return "".join(random.choice(characters) for i in range(0, length))
 
 
-def export_passwords(passwords: list = None):
-    import datetime
-    import os
-
+def export_passwords(passwords: list = None, encryption_key=None):
     try:
-        # Fetch passwords if not provided
         if not passwords:
             try:
                 passwords = session.query(Password).all()
@@ -99,7 +96,6 @@ def export_passwords(passwords: list = None):
                 print(f"Error retrieving passwords from database: {str(e)}")
                 return
 
-        # Ensure the backup directory exists
         backup_dir = os.path.join(os.getcwd(), "backup")
         if not os.path.exists(backup_dir):
             try:
@@ -112,24 +108,33 @@ def export_passwords(passwords: list = None):
         today = datetime.datetime.now().strftime("%Y-%m-%d")
         path = os.path.join(backup_dir, f"{today}.txt")
 
+        with open(path, "w") as f:
+            for password in passwords:
+                try:
+                    content = f"Service: {password.service_name}, Username: {password.username}, Password: {password.encrypted_password.decode()}\n"
+                    f.write(content)
+                except Exception as write_error:
+                    print(
+                        f"Error writing password entry for service '{password.service_name}': {str(write_error)}"
+                    )
+                    continue
+
+        print(f"Passwords exported successfully to {path} (plain text)!")
+
+        cipher = Fernet(encryption_key)
         try:
-            with open(path, "w") as f:
-                for password in passwords:
-                    # Ensure we handle any unexpected issues with writing data
-                    try:
-                        f.write(
-                            f"Service: {password.service_name}, Username: {password.username}, Password: {password.encrypted_password}\n"
-                        )
-                    except Exception as write_error:
-                        print(
-                            f"Error writing password entry for service '{password.service_name}': {str(write_error)}"
-                        )
-                        continue  # Skip this password entry if an error occurs
+            with open(path, "rb") as f:
+                file_data = f.read()
 
-            print(f"Passwords exported successfully to {path}!")
+            encrypted_data = cipher.encrypt(file_data)
 
-        except IOError as e:
-            print(f"Error writing to file {path}: {e}")
+            with open(path, "wb") as f:
+                f.write(encrypted_data)
+
+            print(f"File encrypted successfully!")
+
+        except Exception as e:
+            print(f"Error during file encryption: {str(e)}")
 
     except Exception as e:
         print(f"Unexpected error occurred during export: {str(e)}")
@@ -141,62 +146,44 @@ def import_passwords(path, encryption_key):
         return
 
     try:
-        # Attempt to open the file
-        with open(path, "r") as f:
-            for line in f.readlines():
-                try:
-                    # Attempt to parse the line
-                    parts = line.strip().split(", ")
-                    if len(parts) != 3:
-                        print(f"Skipping invalid line: {line.strip()}")
-                        continue
+        with open(path, "rb") as f:
+            encrypted_content = f.read()
 
-                    service = parts[0].split(": ")[1]
-                    username = parts[1].split(": ")[1]
-                    encrypted_password = parts[2].split(": ")[1]
-
-                    # Clean the password if it's in 'b' format
-                    if encrypted_password.startswith(
-                        "b'"
-                    ) and encrypted_password.endswith("'"):
-                        encrypted_password = encrypted_password[2:-1]
-
-                    # Check if this entry already exists in the database
-                    if (
-                        session.query(Password)
-                        .filter(Password.service_name == service)
-                        .first()
-                        and session.query(Password)
-                        .filter(Password.username == username)
-                        .first()
-                    ):
-                        continue
-
-                    try:
-                        # Attempt to decrypt the password
-                        encrypted_password_bytes = encrypted_password.encode("utf-8")
-                        cipher = Fernet(encryption_key)
-                        decrypted_password = cipher.decrypt(
-                            encrypted_password_bytes
-                        ).decode("utf-8")
-
-                        # Add the password to the database
-                        add_password(service, username, decrypted_password, cipher)
-                        print(f"Imported password for {service}")
-
-                    except Exception as e:
-                        print(f"Error decrypting password for {service}: {str(e)}")
-
-                except Exception as line_error:
-                    print(f"Error processing line: {line.strip()} - {line_error}")
-
+        cipher = Fernet(encryption_key)
         try:
-            # Commit changes after processing the file
-            session.commit()
+            decrypted_content = cipher.decrypt(encrypted_content).decode("utf-8")
 
-        except Exception as commit_error:
-            print(f"Error committing changes: {commit_error}")
-            session.rollback()
+            for line in decrypted_content.splitlines():
+                parts = line.strip().split(", ")
+                if len(parts) != 3:
+                    print(f"Skipping invalid line: {line.strip()}")
+                    continue
+
+                service = parts[0].split(": ")[1]
+                username = parts[1].split(": ")[1]
+                encrypted_password = parts[2].split(": ")[1]
+
+                if encrypted_password.startswith("b'") and encrypted_password.endswith("'"):
+                    encrypted_password = encrypted_password[2:-1]
+
+                if (
+                    session.query(Password).filter(Password.service_name == service).first()
+                    and session.query(Password).filter(Password.username == username).first()
+                ):
+                    continue
+
+                try:
+                    encrypted_password_bytes = encrypted_password.encode("utf-8")
+                    decrypted_password = cipher.decrypt(encrypted_password_bytes).decode("utf-8")
+
+                    add_password(service, username, decrypted_password, cipher)
+                    print(f"Imported password for {service}")
+
+                except Exception as e:
+                    print(f"Error decrypting password for {service}: {str(e)}")
+
+        except Exception as e:
+            print(f"Error decrypting file content: {str(e)}")
 
     except FileNotFoundError:
         print(f"Error: The file at {path} was not found.")
@@ -322,7 +309,7 @@ def main():
         )
 
     elif args.command == "export":
-        export_passwords(args.passwords)
+        export_passwords(args.passwords, encryption_key)
         print("Passwords exported successfully!")
 
     elif args.command == "import":
