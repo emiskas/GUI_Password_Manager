@@ -86,21 +86,53 @@ def generate_password(length=16):
     return "".join(random.choice(characters) for i in range(0, length))
 
 
-def export_passwords(passwords: list=None):
+def export_passwords(passwords: list = None):
     import datetime
+    import os
 
-    if not passwords:
-        passwords = session.query(Password).all()
+    try:
+        # Fetch passwords if not provided
+        if not passwords:
+            try:
+                passwords = session.query(Password).all()
+            except Exception as e:
+                print(f"Error retrieving passwords from database: {str(e)}")
+                return
 
-    today = datetime.datetime.now().strftime("%Y-%m-%d")
+        # Ensure the backup directory exists
+        backup_dir = os.path.join(os.getcwd(), "backup")
+        if not os.path.exists(backup_dir):
+            try:
+                os.makedirs(backup_dir)
+                print(f"Backup directory created at {backup_dir}")
+            except OSError as e:
+                print(f"Error creating backup directory: {e}")
+                return
 
-    if not os.path.exists(os.path.join(os.getcwd(), "backup")):
-        os.makedirs(os.path.join(os.getcwd(), "backup"))
+        today = datetime.datetime.now().strftime("%Y-%m-%d")
+        path = os.path.join(backup_dir, f"{today}.txt")
 
-    path = os.path.join(os.getcwd(), "backup", f"{today}.txt")
-    with open(path, "w") as f:
-        for password in passwords:
-            f.write(f"Service: {password.service_name}, Username: {password.username}, Password: {password.encrypted_password}\n")
+        try:
+            with open(path, "w") as f:
+                for password in passwords:
+                    # Ensure we handle any unexpected issues with writing data
+                    try:
+                        f.write(
+                            f"Service: {password.service_name}, Username: {password.username}, Password: {password.encrypted_password}\n"
+                        )
+                    except Exception as write_error:
+                        print(
+                            f"Error writing password entry for service '{password.service_name}': {str(write_error)}"
+                        )
+                        continue  # Skip this password entry if an error occurs
+
+            print(f"Passwords exported successfully to {path}!")
+
+        except IOError as e:
+            print(f"Error writing to file {path}: {e}")
+
+    except Exception as e:
+        print(f"Unexpected error occurred during export: {str(e)}")
 
 
 def import_passwords(path, encryption_key):
@@ -108,43 +140,70 @@ def import_passwords(path, encryption_key):
         print("You must provide a path to the file.")
         return
 
-    with open(path, "r") as f:
-        for line in f.readlines():
-            parts = line.strip().split(", ")
-            if len(parts) != 3:
-                print(f"Skipping invalid line: {line.strip()}")
-                continue
-
-            service = parts[0].split(": ")[1]
-            username = parts[1].split(": ")[1]
-            encrypted_password = parts[2].split(": ")[1]
-
-            if encrypted_password.startswith("b'") and encrypted_password.endswith("'"):
-                encrypted_password = encrypted_password[2:-1]
-
-            if (session.query(Password).filter(Password.service_name == service).first()
-                    and session.query(Password).filter(Password.username == username).first()):
-                continue
-
-            try:
-                encrypted_password_bytes = encrypted_password.encode("utf-8")
-
-                cipher = Fernet(encryption_key)
-                decrypted_password = cipher.decrypt(encrypted_password_bytes).decode("utf-8")
-
-                add_password(service, username, decrypted_password, cipher)
-                print(f"Imported password for {service}")
-
-            except Exception as e:
-                print(f"Error decrypting password for {service}: {str(e)}")
-                session.rollback()
-
-            finally:
+    try:
+        # Attempt to open the file
+        with open(path, "r") as f:
+            for line in f.readlines():
                 try:
-                    session.commit()
-                except Exception as commit_error:
-                    print(f"Error committing changes: {commit_error}")
-                    session.rollback()
+                    # Attempt to parse the line
+                    parts = line.strip().split(", ")
+                    if len(parts) != 3:
+                        print(f"Skipping invalid line: {line.strip()}")
+                        continue
+
+                    service = parts[0].split(": ")[1]
+                    username = parts[1].split(": ")[1]
+                    encrypted_password = parts[2].split(": ")[1]
+
+                    # Clean the password if it's in 'b' format
+                    if encrypted_password.startswith(
+                        "b'"
+                    ) and encrypted_password.endswith("'"):
+                        encrypted_password = encrypted_password[2:-1]
+
+                    # Check if this entry already exists in the database
+                    if (
+                        session.query(Password)
+                        .filter(Password.service_name == service)
+                        .first()
+                        and session.query(Password)
+                        .filter(Password.username == username)
+                        .first()
+                    ):
+                        continue
+
+                    try:
+                        # Attempt to decrypt the password
+                        encrypted_password_bytes = encrypted_password.encode("utf-8")
+                        cipher = Fernet(encryption_key)
+                        decrypted_password = cipher.decrypt(
+                            encrypted_password_bytes
+                        ).decode("utf-8")
+
+                        # Add the password to the database
+                        add_password(service, username, decrypted_password, cipher)
+                        print(f"Imported password for {service}")
+
+                    except Exception as e:
+                        print(f"Error decrypting password for {service}: {str(e)}")
+
+                except Exception as line_error:
+                    print(f"Error processing line: {line.strip()} - {line_error}")
+
+        try:
+            # Commit changes after processing the file
+            session.commit()
+
+        except Exception as commit_error:
+            print(f"Error committing changes: {commit_error}")
+            session.rollback()
+
+    except FileNotFoundError:
+        print(f"Error: The file at {path} was not found.")
+    except IOError as e:
+        print(f"Error opening or reading the file {path}: {e}")
+    except Exception as e:
+        print(f"Unexpected error occurred during import: {str(e)}")
 
 
 # CLI setup
@@ -156,8 +215,12 @@ def main():
     add_parser = subparsers.add_parser("add", help="Add a new password")
     add_parser.add_argument("service_name", help="Name of the service")
     add_parser.add_argument("username", help="Username for the service")
-    add_parser.add_argument("plain_password", nargs="?", help="Password for the service")
-    add_parser.add_argument("--generate", action="store_true", help="Generate a random password")
+    add_parser.add_argument(
+        "plain_password", nargs="?", help="Password for the service"
+    )
+    add_parser.add_argument(
+        "--generate", action="store_true", help="Generate a random password"
+    )
 
     # Retrieve command
     retrieve_parser = subparsers.add_parser("retrieve", help="Retrieve a password")
@@ -179,8 +242,12 @@ def main():
     # Update command
     update_parser = subparsers.add_parser("update", help="Update a saved password")
     update_parser.add_argument("service_name", help="Name of the service to update")
-    update_parser.add_argument("new_password", nargs="?", help="New password for the service")
-    update_parser.add_argument("--generate", action="store_true", help="Generate a random password")
+    update_parser.add_argument(
+        "new_password", nargs="?", help="New password for the service"
+    )
+    update_parser.add_argument(
+        "--generate", action="store_true", help="Generate a random password"
+    )
 
     # Generate command
     generate_parser = subparsers.add_parser(
@@ -242,7 +309,9 @@ def main():
         if args.generate:
             args.plain_password = generate_password()
         elif not args.plain_password:
-            print("Error: You must provide a password or use '--generate' to create one.")
+            print(
+                "Error: You must provide a password or use '--generate' to create one."
+            )
             return
 
         add_password(
