@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (QApplication, QDialog, QLabel, QLineEdit,
                              QTableWidget, QTableWidgetItem, QVBoxLayout,
                              QWidget)
 
-from modules.password_manager import add_password, list_passwords
+from modules.password_manager import add_password, list_passwords, verify_master_password
 
 # Load environment variables
 load_dotenv()
@@ -18,8 +18,58 @@ if not encryption_key:
     raise EnvironmentError("ENCRYPTION_KEY not found in .env file. Please set it.")
 cipher = Fernet(encryption_key)
 
+stored_encrypted_password = os.getenv("ENCRYPTED_MASTER_PASSWORD")
+if not stored_encrypted_password:
+    raise EnvironmentError("ENCRYPTED_MASTER_PASSWORD not found in .env file.")
+
+
+class MasterPasswordDialog(QDialog):
+    """Dialog to prompt for the master password."""
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Master Password")
+        self.setGeometry(400, 300, 300, 150)
+
+        layout = QVBoxLayout()
+
+        # Label and input for master password
+        self.label = QLabel("Enter your master password:")
+        self.password_input = QLineEdit()
+        self.password_input.setEchoMode(QLineEdit.Password)
+
+        # Buttons
+        self.submit_button = QPushButton("Submit")
+        self.cancel_button = QPushButton("Cancel")
+
+        # Add widgets to layout
+        layout.addWidget(self.label)
+        layout.addWidget(self.password_input)
+        layout.addWidget(self.submit_button)
+        layout.addWidget(self.cancel_button)
+
+        self.setLayout(layout)
+
+        # Button connections
+        self.submit_button.clicked.connect(self.validate_password)
+        self.cancel_button.clicked.connect(self.reject)
+
+    def validate_password(self):
+        input_password = self.password_input.text()
+
+        # Validate the password using the password_manager function
+        if verify_master_password(
+            input_password,
+            stored_encrypted_password.encode(),
+            encryption_key.encode(),
+        ):
+            self.accept()  # Close the dialog and proceed to main window
+        else:
+            QMessageBox.critical(self, "Error", "Incorrect master password.")
+            self.password_input.clear()
+
 
 class AddPasswordDialog(QDialog):
+    """Dialog for adding a new password."""
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Add Password")
@@ -73,10 +123,9 @@ class AddPasswordDialog(QDialog):
 
 
 class PasswordTable(QTableWidget):
+    """Widget to display stored passwords."""
     def __init__(self, password_list):
-        super().__init__(
-            len(password_list), 2
-        )  # Number of rows = number of strings, 2 columns
+        super().__init__(len(password_list), 2)  # Number of rows = number of strings, 2 columns
         self.setHorizontalHeaderLabels(["Service", "Username"])  # Set column headers
 
         # Populate table rows
@@ -105,6 +154,7 @@ class PasswordTable(QTableWidget):
 
 
 class MainWindow(QMainWindow):
+    """Main application window."""
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Password Manager")
@@ -165,6 +215,14 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    main_window = MainWindow()
-    main_window.show()
-    sys.exit(app.exec_())
+
+    # Show the master password dialog first
+    password_dialog = MasterPasswordDialog()
+    if password_dialog.exec_() == QDialog.Accepted:
+        # If the master password is correct, show the main window
+        main_window = MainWindow()
+        main_window.show()
+        sys.exit(app.exec_())
+    else:
+        # If the dialog is rejected, exit the application
+        sys.exit(0)
