@@ -4,15 +4,14 @@ import sys
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QClipboard
 from PyQt5.QtWidgets import (QApplication, QDialog, QLabel, QLineEdit,
                              QMainWindow, QMessageBox, QPushButton,
                              QTableWidget, QTableWidgetItem, QVBoxLayout,
                              QWidget)
 
+from modules.models import Password, SessionLocal
 from modules.password_manager import (add_password, list_passwords,
                                       verify_master_password)
-from modules.models import Password, SessionLocal
 
 session = SessionLocal()
 
@@ -29,7 +28,7 @@ if not stored_encrypted_password:
 
 
 class MasterPasswordDialog(QDialog):
-    """Dialog to prompt for the master password."""
+    """Dialog to prompt the user for the master password."""
 
     def __init__(self):
         super().__init__()
@@ -38,16 +37,16 @@ class MasterPasswordDialog(QDialog):
 
         layout = QVBoxLayout()
 
-        # Label and input for master password
+        # Label and input field for the master password
         self.label = QLabel("Enter your master password:")
         self.password_input = QLineEdit()
-        self.password_input.setEchoMode(QLineEdit.Password)
+        self.password_input.setEchoMode(QLineEdit.Password)  # Hide text for security
 
-        # Buttons
+        # Submit and Cancel buttons
         self.submit_button = QPushButton("Submit")
         self.cancel_button = QPushButton("Cancel")
 
-        # Add widgets to layout
+        # Add widgets to the layout
         layout.addWidget(self.label)
         layout.addWidget(self.password_input)
         layout.addWidget(self.submit_button)
@@ -55,27 +54,28 @@ class MasterPasswordDialog(QDialog):
 
         self.setLayout(layout)
 
-        # Button connections
+        # Connect buttons to their respective functions
         self.submit_button.clicked.connect(self.validate_password)
         self.cancel_button.clicked.connect(self.reject)
 
     def validate_password(self):
+        """Validate the entered master password."""
         input_password = self.password_input.text()
 
-        # Validate the password using the password_manager function
+        # Check if the entered master password is correct
         if verify_master_password(
             input_password,
             stored_encrypted_password.encode(),
             encryption_key.encode(),
         ):
-            self.accept()  # Close the dialog and proceed to main window
+            self.accept()  # Close the dialog and proceed to the main application
         else:
             QMessageBox.critical(self, "Error", "Incorrect master password.")
             self.password_input.clear()
 
 
 class AddPasswordDialog(QDialog):
-    """Dialog for adding a new password."""
+    """Dialog for adding a new password to the database."""
 
     def __init__(self):
         super().__init__()
@@ -84,7 +84,7 @@ class AddPasswordDialog(QDialog):
 
         layout = QVBoxLayout()
 
-        # Input fields
+        # Input fields for service name, username, and password
         self.service_label = QLabel("Service Name:")
         self.service_input = QLineEdit()
         self.username_label = QLabel("Username:")
@@ -92,11 +92,11 @@ class AddPasswordDialog(QDialog):
         self.password_label = QLabel("Password:")
         self.password_input = QLineEdit()
 
-        # Buttons
+        # Save and Cancel buttons
         self.save_button = QPushButton("Save")
         self.cancel_button = QPushButton("Cancel")
 
-        # Add widgets to layout
+        # Add widgets to the layout
         layout.addWidget(self.service_label)
         layout.addWidget(self.service_input)
         layout.addWidget(self.username_label)
@@ -108,15 +108,17 @@ class AddPasswordDialog(QDialog):
 
         self.setLayout(layout)
 
-        # Button connections
+        # Connect buttons to their respective functions
         self.save_button.clicked.connect(self.save_password)
         self.cancel_button.clicked.connect(self.close)
 
     def save_password(self):
+        """Save the entered password to the database."""
         service = self.service_input.text().strip()
         username = self.username_input.text().strip()
         password = self.password_input.text().strip()
 
+        # Ensure all fields are filled
         if not service or not username or not password:
             QMessageBox.warning(self, "Error", "All fields are required.")
             return
@@ -130,61 +132,67 @@ class AddPasswordDialog(QDialog):
 
 
 class PasswordTable(QTableWidget):
-    """Widget to display stored passwords."""
+    """Widget to display stored passwords in a table."""
 
     def __init__(self, password_list, cipher):
         super().__init__(
-            len(password_list), 2
-        )  # Number of rows = number of strings, 2 columns
+            len(password_list), 2  # Number of rows = number of passwords, 2 columns
+        )
         self.setHorizontalHeaderLabels(["Service", "Username"])  # Set column headers
-        self.cipher = cipher
+        self.cipher = cipher  # Store the cipher for decryption
 
-        # Populate table rows
+        # Populate the table rows
         for row, password_str in enumerate(password_list):
-            # Parse the string
+            # Parse the string to extract service and username
             service = self.extract_field(password_str, "Service")
             username = self.extract_field(password_str, "Username")
 
-            # Populate the table with parsed values
+            # Add parsed values to the table
             self.setItem(row, 0, QTableWidgetItem(service))
             self.setItem(row, 1, QTableWidgetItem(username))
 
         self.resizeColumnsToContents()
 
-        # Enable row clicks
+        # Enable row clicks for password retrieval
         self.cellClicked.connect(self.handle_row_click)
 
     def handle_row_click(self, row, column):
-        """Handle clicks on a row to reveal the password."""
+        """Handle clicks on a row to reveal and copy the password."""
         service = self.item(row, 0).text()
         username = self.item(row, 1).text()
 
         try:
-            # Retrieve the password for the clicked service
-            password_data = session.query(Password).filter_by(service_name=service).first()
+            # Query the database for the clicked service
+            password_data = (
+                session.query(Password).filter_by(service_name=service).first()
+            )
             if not password_data:
-                QMessageBox.warning(self, "Not Found", "No password found for this service.")
+                QMessageBox.warning(
+                    self, "Not Found", "No password found for this service."
+                )
                 return
 
+            # Decrypt and display the password
             decrypted_password = password_data.get_decrypted_password(self.cipher)
-
-            # Show the password and copy it to the clipboard
             QMessageBox.information(
                 self,
                 "Password Revealed",
                 f"Service: {service}\nUsername: {username}\nPassword: {decrypted_password}",
             )
 
+            # Copy the password to the clipboard
             clipboard = QApplication.clipboard()
             clipboard.setText(decrypted_password)
             QMessageBox.information(self, "Copied", "Password copied to clipboard!")
 
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to retrieve password: {str(e)}")
+            QMessageBox.critical(
+                self, "Error", f"Failed to retrieve password: {str(e)}"
+            )
 
     @staticmethod
     def extract_field(password_str, field_name):
-        """Extract the value of a field (e.g., 'Service') from the string."""
+        """Extract the value of a field (e.g., 'Service') from a string."""
         field_prefix = f"{field_name}: "
         start = password_str.find(field_prefix) + len(field_prefix)
         end = (
@@ -196,7 +204,7 @@ class PasswordTable(QTableWidget):
 
 
 class MainWindow(QMainWindow):
-    """Main application window."""
+    """Main application window for the password manager."""
 
     def __init__(self):
         super().__init__()
@@ -207,15 +215,15 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         layout = QVBoxLayout()
 
-        # Buttons
+        # Buttons for adding and listing passwords
         self.add_password_btn = QPushButton("Add Password")
         self.list_passwords_btn = QPushButton("List Passwords")
 
-        # Status Label
+        # Status label for feedback
         self.status_label = QLabel("Welcome to Password Manager")
         self.status_label.setAlignment(Qt.AlignCenter)
 
-        # Add to layout
+        # Add widgets to the layout
         layout.addWidget(self.status_label)
         layout.addWidget(self.add_password_btn)
         layout.addWidget(self.list_passwords_btn)
@@ -223,15 +231,17 @@ class MainWindow(QMainWindow):
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
 
-        # Button connections
+        # Connect buttons to their respective functions
         self.add_password_btn.clicked.connect(self.open_add_password_dialog)
         self.list_passwords_btn.clicked.connect(self.display_passwords)
 
     def open_add_password_dialog(self):
+        """Open the dialog for adding a new password."""
         dialog = AddPasswordDialog()
         dialog.exec_()
 
     def display_passwords(self):
+        """Display a table of stored passwords."""
         try:
             password_list = list_passwords()  # Get the list of strings
 
@@ -239,7 +249,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.information(self, "No Passwords", password_list)
                 return
 
-            # Create a dialog to display the table
+            # Create a dialog to display the password table
             dialog = QDialog(self)
             dialog.setWindowTitle("Stored Passwords")
             dialog.setGeometry(200, 200, 600, 400)
@@ -264,7 +274,7 @@ if __name__ == "__main__":
     # Show the master password dialog first
     password_dialog = MasterPasswordDialog()
     if password_dialog.exec_() == QDialog.Accepted:
-        # If the master password is correct, show the main window
+        # If the master password is correct, show the main application window
         main_window = MainWindow()
         main_window.show()
         sys.exit(app.exec_())
