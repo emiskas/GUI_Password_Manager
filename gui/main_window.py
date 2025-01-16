@@ -4,12 +4,17 @@ import sys
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QClipboard
 from PyQt5.QtWidgets import (QApplication, QDialog, QLabel, QLineEdit,
                              QMainWindow, QMessageBox, QPushButton,
                              QTableWidget, QTableWidgetItem, QVBoxLayout,
                              QWidget)
 
-from modules.password_manager import add_password, list_passwords, verify_master_password
+from modules.password_manager import (add_password, list_passwords,
+                                      verify_master_password)
+from modules.models import Password, SessionLocal
+
+session = SessionLocal()
 
 # Load environment variables
 load_dotenv()
@@ -25,6 +30,7 @@ if not stored_encrypted_password:
 
 class MasterPasswordDialog(QDialog):
     """Dialog to prompt for the master password."""
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Master Password")
@@ -70,6 +76,7 @@ class MasterPasswordDialog(QDialog):
 
 class AddPasswordDialog(QDialog):
     """Dialog for adding a new password."""
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Add Password")
@@ -124,9 +131,13 @@ class AddPasswordDialog(QDialog):
 
 class PasswordTable(QTableWidget):
     """Widget to display stored passwords."""
-    def __init__(self, password_list):
-        super().__init__(len(password_list), 2)  # Number of rows = number of strings, 2 columns
+
+    def __init__(self, password_list, cipher):
+        super().__init__(
+            len(password_list), 2
+        )  # Number of rows = number of strings, 2 columns
         self.setHorizontalHeaderLabels(["Service", "Username"])  # Set column headers
+        self.cipher = cipher
 
         # Populate table rows
         for row, password_str in enumerate(password_list):
@@ -139,6 +150,37 @@ class PasswordTable(QTableWidget):
             self.setItem(row, 1, QTableWidgetItem(username))
 
         self.resizeColumnsToContents()
+
+        # Enable row clicks
+        self.cellClicked.connect(self.handle_row_click)
+
+    def handle_row_click(self, row, column):
+        """Handle clicks on a row to reveal the password."""
+        service = self.item(row, 0).text()
+        username = self.item(row, 1).text()
+
+        try:
+            # Retrieve the password for the clicked service
+            password_data = session.query(Password).filter_by(service_name=service).first()
+            if not password_data:
+                QMessageBox.warning(self, "Not Found", "No password found for this service.")
+                return
+
+            decrypted_password = password_data.get_decrypted_password(self.cipher)
+
+            # Show the password and copy it to the clipboard
+            QMessageBox.information(
+                self,
+                "Password Revealed",
+                f"Service: {service}\nUsername: {username}\nPassword: {decrypted_password}",
+            )
+
+            clipboard = QApplication.clipboard()
+            clipboard.setText(decrypted_password)
+            QMessageBox.information(self, "Copied", "Password copied to clipboard!")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to retrieve password: {str(e)}")
 
     @staticmethod
     def extract_field(password_str, field_name):
@@ -155,6 +197,7 @@ class PasswordTable(QTableWidget):
 
 class MainWindow(QMainWindow):
     """Main application window."""
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Password Manager")
@@ -203,14 +246,16 @@ class MainWindow(QMainWindow):
 
             # Add the PasswordTable to the dialog
             layout = QVBoxLayout(dialog)
-            table = PasswordTable(password_list)
+            table = PasswordTable(password_list, cipher)
             layout.addWidget(table)
 
             dialog.setLayout(layout)
             dialog.exec_()  # Show the dialog
 
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to retrieve passwords: {str(e)}")
+            QMessageBox.critical(
+                self, "Error", f"Failed to retrieve passwords: {str(e)}"
+            )
 
 
 if __name__ == "__main__":
