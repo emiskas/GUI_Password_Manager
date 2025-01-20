@@ -132,13 +132,15 @@ class AddPasswordDialog(QDialog):
 
 
 class PasswordTable(QTableWidget):
-    """Widget to display stored passwords in a table."""
+    """Widget to display stored passwords with View and Delete options."""
 
     def __init__(self, password_list, cipher):
         super().__init__(
-            len(password_list), 2  # Number of rows = number of passwords, 2 columns
+            len(password_list), 4  # 4 columns: Service, Username, View, Delete
         )
-        self.setHorizontalHeaderLabels(["Service", "Username"])  # Set column headers
+        self.setHorizontalHeaderLabels(
+            ["Service", "Username", "", ""]
+        )  # Set column headers
         self.cipher = cipher  # Store the cipher for decryption
 
         # Populate the table rows
@@ -147,17 +149,24 @@ class PasswordTable(QTableWidget):
             service = self.extract_field(password_str, "Service")
             username = self.extract_field(password_str, "Username")
 
-            # Add parsed values to the table
+            # Add service and username to the table
             self.setItem(row, 0, QTableWidgetItem(service))
             self.setItem(row, 1, QTableWidgetItem(username))
 
+            # Add "View" button
+            view_button = QPushButton("View")
+            view_button.clicked.connect(lambda _, r=row: self.handle_view_click(r))
+            self.setCellWidget(row, 2, view_button)
+
+            # Add "Delete" button
+            delete_button = QPushButton("Delete")
+            delete_button.clicked.connect(lambda _, r=row: self.handle_delete_click(r))
+            self.setCellWidget(row, 3, delete_button)
+
         self.resizeColumnsToContents()
 
-        # Enable row clicks for password retrieval
-        self.cellClicked.connect(self.handle_row_click)
-
-    def handle_row_click(self, row, column):
-        """Handle clicks on a row to reveal and copy the password."""
+    def handle_view_click(self, row):
+        """Handle the View button click to reveal and copy the password."""
         service = self.item(row, 0).text()
         username = self.item(row, 1).text()
 
@@ -174,21 +183,76 @@ class PasswordTable(QTableWidget):
 
             # Decrypt and display the password
             decrypted_password = password_data.get_decrypted_password(self.cipher)
-            QMessageBox.information(
-                self,
-                "Password Revealed",
-                f"Service: {service}\nUsername: {username}\nPassword: {decrypted_password}",
+
+            # Create a dialog to display the password with a Copy button
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Password Revealed")
+            dialog.setGeometry(300, 300, 400, 200)
+
+            layout = QVBoxLayout(dialog)
+
+            # Display service, username, and password
+            layout.addWidget(QLabel(f"Service: {service}"))
+            layout.addWidget(QLabel(f"Username: {username}"))
+            layout.addWidget(QLabel(f"Password: {decrypted_password}"))
+
+            # Add a Copy button
+            copy_button = QPushButton("Copy Password")
+            layout.addWidget(copy_button)
+
+            # Connect the Copy button to copy the password to the clipboard
+            copy_button.clicked.connect(
+                lambda: self.copy_to_clipboard(decrypted_password)
             )
 
-            # Copy the password to the clipboard
-            clipboard = QApplication.clipboard()
-            clipboard.setText(decrypted_password)
-            QMessageBox.information(self, "Copied", "Password copied to clipboard!")
+            dialog.setLayout(layout)
+            dialog.exec_()  # Show the dialog
 
         except Exception as e:
             QMessageBox.critical(
                 self, "Error", f"Failed to retrieve password: {str(e)}"
             )
+
+    def copy_to_clipboard(self, password):
+        """Copy the given password to the clipboard."""
+        clipboard = QApplication.clipboard()
+        clipboard.setText(password)
+        QMessageBox.information(self, "Copied", "Password copied to clipboard!")
+
+    def handle_delete_click(self, row):
+        """Handle the Delete button click to remove a password."""
+        service = self.item(row, 0).text()
+
+        # Confirmation dialog
+        reply = QMessageBox.question(
+            self,
+            "Confirm Deletion",
+            f"Are you sure you want to delete the password for {service}?",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+
+        if reply == QMessageBox.Yes:
+            try:
+                # Query the database and delete the password
+                password_data = (
+                    session.query(Password).filter_by(service_name=service).first()
+                )
+                if password_data:
+                    session.delete(password_data)
+                    session.commit()
+                    QMessageBox.information(
+                        self, "Deleted", f"Password for {service} deleted successfully."
+                    )
+                    self.removeRow(row)  # Remove the row from the table
+                else:
+                    QMessageBox.warning(
+                        self, "Not Found", "No password found for this service."
+                    )
+
+            except Exception as e:
+                QMessageBox.critical(
+                    self, "Error", f"Failed to delete password: {str(e)}"
+                )
 
     @staticmethod
     def extract_field(password_str, field_name):
