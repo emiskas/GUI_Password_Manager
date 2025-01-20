@@ -1,3 +1,5 @@
+import os.path
+
 from sqlalchemy import Column, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -22,7 +24,12 @@ class Password(Base):
         return cipher.decrypt(self.encrypted_password).decode("utf-8")
 
 
-DATABASE_URL = "sqlite:///passwords.sqlite"
+# Dynamically construct the path to the database file in the "gui" folder
+BASE_DIR = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
+)  # Get the base directory
+DB_DIR = os.path.join(BASE_DIR, "gui")  # Path to the "gui" folder
+DATABASE_URL = f"sqlite:///{os.path.join(DB_DIR, 'passwords.sqlite')}"  # Full path to the database file
 
 engine = create_engine(DATABASE_URL, echo=True)
 SessionLocal = sessionmaker(bind=engine)
