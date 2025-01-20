@@ -132,14 +132,12 @@ class AddPasswordDialog(QDialog):
 
 
 class PasswordTable(QTableWidget):
-    """Widget to display stored passwords with View and Delete options."""
+    """Widget to display stored passwords with View options."""
 
     def __init__(self, password_list, cipher):
-        super().__init__(
-            len(password_list), 4  # 4 columns: Service, Username, View, Delete
-        )
+        super().__init__(len(password_list), 3)  # 3 columns: Service, Username, Actions
         self.setHorizontalHeaderLabels(
-            ["Service", "Username", "", ""]
+            ["Service", "Username", "Actions"]
         )  # Set column headers
         self.cipher = cipher  # Store the cipher for decryption
 
@@ -150,23 +148,25 @@ class PasswordTable(QTableWidget):
             username = self.extract_field(password_str, "Username")
 
             # Add service and username to the table
-            self.setItem(row, 0, QTableWidgetItem(service))
-            self.setItem(row, 1, QTableWidgetItem(username))
+            service_item = QTableWidgetItem(service)
+            username_item = QTableWidgetItem(username)
+
+            # Make cells non-editable
+            service_item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+            username_item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+
+            self.setItem(row, 0, service_item)
+            self.setItem(row, 1, username_item)
 
             # Add "View" button
             view_button = QPushButton("View")
             view_button.clicked.connect(lambda _, r=row: self.handle_view_click(r))
             self.setCellWidget(row, 2, view_button)
 
-            # Add "Delete" button
-            delete_button = QPushButton("Delete")
-            delete_button.clicked.connect(lambda _, r=row: self.handle_delete_click(r))
-            self.setCellWidget(row, 3, delete_button)
-
         self.resizeColumnsToContents()
 
     def handle_view_click(self, row):
-        """Handle the View button click to reveal and copy the password."""
+        """Handle the View button click to open the UpdatePasswordDialog."""
         service = self.item(row, 0).text()
         username = self.item(row, 1).text()
 
@@ -181,78 +181,20 @@ class PasswordTable(QTableWidget):
                 )
                 return
 
-            # Decrypt and display the password
+            # Decrypt the password and open the update dialog
             decrypted_password = password_data.get_decrypted_password(self.cipher)
-
-            # Create a dialog to display the password with a Copy button
-            dialog = QDialog(self)
-            dialog.setWindowTitle("Password Revealed")
-            dialog.setGeometry(300, 300, 400, 200)
-
-            layout = QVBoxLayout(dialog)
-
-            # Display service, username, and password
-            layout.addWidget(QLabel(f"Service: {service}"))
-            layout.addWidget(QLabel(f"Username: {username}"))
-            layout.addWidget(QLabel(f"Password: {decrypted_password}"))
-
-            # Add a Copy button
-            copy_button = QPushButton("Copy Password")
-            layout.addWidget(copy_button)
-
-            # Connect the Copy button to copy the password to the clipboard
-            copy_button.clicked.connect(
-                lambda: self.copy_to_clipboard(decrypted_password)
+            dialog = UpdatePasswordDialog(
+                service, username, decrypted_password, self.cipher, row, self
             )
-
-            dialog.setLayout(layout)
-            dialog.exec_()  # Show the dialog
+            if dialog.exec_() == QDialog.Accepted:
+                # Update the table with any changes made
+                self.setItem(row, 0, QTableWidgetItem(dialog.updated_service))
+                self.setItem(row, 1, QTableWidgetItem(dialog.updated_username))
 
         except Exception as e:
             QMessageBox.critical(
                 self, "Error", f"Failed to retrieve password: {str(e)}"
             )
-
-    def copy_to_clipboard(self, password):
-        """Copy the given password to the clipboard."""
-        clipboard = QApplication.clipboard()
-        clipboard.setText(password)
-        QMessageBox.information(self, "Copied", "Password copied to clipboard!")
-
-    def handle_delete_click(self, row):
-        """Handle the Delete button click to remove a password."""
-        service = self.item(row, 0).text()
-
-        # Confirmation dialog
-        reply = QMessageBox.question(
-            self,
-            "Confirm Deletion",
-            f"Are you sure you want to delete the password for {service}?",
-            QMessageBox.Yes | QMessageBox.No,
-        )
-
-        if reply == QMessageBox.Yes:
-            try:
-                # Query the database and delete the password
-                password_data = (
-                    session.query(Password).filter_by(service_name=service).first()
-                )
-                if password_data:
-                    session.delete(password_data)
-                    session.commit()
-                    QMessageBox.information(
-                        self, "Deleted", f"Password for {service} deleted successfully."
-                    )
-                    self.removeRow(row)  # Remove the row from the table
-                else:
-                    QMessageBox.warning(
-                        self, "Not Found", "No password found for this service."
-                    )
-
-            except Exception as e:
-                QMessageBox.critical(
-                    self, "Error", f"Failed to delete password: {str(e)}"
-                )
 
     @staticmethod
     def extract_field(password_str, field_name):
@@ -265,6 +207,159 @@ class PasswordTable(QTableWidget):
             else len(password_str)
         )
         return password_str[start:end].strip()
+
+
+class UpdatePasswordDialog(QDialog):
+    """Dialog for viewing, updating, and deleting a password."""
+
+    def __init__(self, service, username, password, cipher, row, parent_table):
+        super().__init__()
+        self.setWindowTitle("Update Password")
+        self.setGeometry(300, 300, 400, 300)
+
+        self.cipher = cipher
+        self.row = row
+        self.parent_table = parent_table
+        self.updated_service = service
+        self.updated_username = username
+
+        layout = QVBoxLayout()
+
+        # Current service and username
+        self.service_label = QLabel("Service Name:")
+        self.service_input = QLineEdit()
+        self.service_input.setText(service)
+
+        self.username_label = QLabel("Username:")
+        self.username_input = QLineEdit()
+        self.username_input.setText(username)
+
+        self.password_label = QLabel("Password:")
+        self.password_input = QLineEdit()
+        self.password_input.setText(password)
+        self.password_input.setEchoMode(QLineEdit.Password)  # Conceal password
+
+        # Show/Hide password toggle
+        self.toggle_password_btn = QPushButton("Show Password")
+        self.toggle_password_btn.setCheckable(True)
+        self.toggle_password_btn.clicked.connect(self.toggle_password_visibility)
+
+        # Buttons
+        self.copy_button = QPushButton("Copy Password")
+        self.update_button = QPushButton("Update")
+        self.delete_button = QPushButton("Delete")
+        self.cancel_button = QPushButton("Cancel")
+
+        # Add widgets to layout
+        layout.addWidget(self.service_label)
+        layout.addWidget(self.service_input)
+        layout.addWidget(self.username_label)
+        layout.addWidget(self.username_input)
+        layout.addWidget(self.password_label)
+        layout.addWidget(self.password_input)
+        layout.addWidget(self.copy_button)
+        layout.addWidget(self.toggle_password_btn)
+        layout.addWidget(self.update_button)
+        layout.addWidget(self.delete_button)
+        layout.addWidget(self.cancel_button)
+
+        self.setLayout(layout)
+
+        # Button connections
+        self.copy_button.clicked.connect(lambda: self.copy_to_clipboard(password))
+        self.update_button.clicked.connect(self.update_password)
+        self.delete_button.clicked.connect(self.delete_password)
+        self.cancel_button.clicked.connect(self.reject)
+
+    def toggle_password_visibility(self):
+        """Toggle the visibility of the password."""
+        if self.toggle_password_btn.isChecked():
+            self.password_input.setEchoMode(QLineEdit.Normal)
+            self.toggle_password_btn.setText("Hide Password")
+        else:
+            self.password_input.setEchoMode(QLineEdit.Password)
+            self.toggle_password_btn.setText("Show Password")
+
+    def copy_to_clipboard(self, password):
+        """Copy the given password to the clipboard."""
+        clipboard = QApplication.clipboard()
+        clipboard.setText(password)
+        QMessageBox.information(self, "Copied", "Password copied to clipboard!")
+
+    def update_password(self):
+        """Update the password in the database."""
+        new_service = self.service_input.text().strip()
+        new_username = self.username_input.text().strip()
+        new_password = self.password_input.text().strip()
+
+        if not new_service or not new_username or not new_password:
+            QMessageBox.warning(self, "Error", "All fields are required.")
+            return
+
+        try:
+            password_data = (
+                session.query(Password)
+                .filter_by(service_name=self.updated_service)
+                .first()
+            )
+            if password_data:
+                # Update the database entry
+                password_data.service_name = new_service
+                password_data.username = new_username
+                password_data.set_encrypted_password(new_password, self.cipher)
+                session.commit()
+
+                # Update dialog attributes for the parent table
+                self.updated_service = new_service
+                self.updated_username = new_username
+
+                QMessageBox.information(
+                    self, "Success", "Password updated successfully."
+                )
+                self.accept()  # Close the dialog
+            else:
+                QMessageBox.warning(
+                    self, "Not Found", "Password not found in the database."
+                )
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to update password: {str(e)}")
+
+    def delete_password(self):
+        """Delete the password from the database."""
+        reply = QMessageBox.question(
+            self,
+            "Confirm Deletion",
+            f"Are you sure you want to delete the password for {self.updated_service}?",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if reply == QMessageBox.Yes:
+            try:
+                password_data = (
+                    session.query(Password)
+                    .filter_by(service_name=self.updated_service)
+                    .first()
+                )
+                if password_data:
+                    session.delete(password_data)
+                    session.commit()
+
+                    # Remove the row from the parent table
+                    self.parent_table.removeRow(self.row)
+
+                    QMessageBox.information(
+                        self,
+                        "Deleted",
+                        f"Password for {self.updated_service} deleted successfully.",
+                    )
+                    self.accept()  # Close the dialog
+                else:
+                    QMessageBox.warning(
+                        self, "Not Found", "Password not found in the database."
+                    )
+            except Exception as e:
+                QMessageBox.critical(
+                    self, "Error", f"Failed to delete password: {str(e)}"
+                )
 
 
 class MainWindow(QMainWindow):
