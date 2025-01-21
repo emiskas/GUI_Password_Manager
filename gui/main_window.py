@@ -483,15 +483,21 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
 
     if not os.getenv("ENCRYPTED_MASTER_PASSWORD"):
-        MasterPasswordCreationDialog().exec_()
+        creation_dialog = MasterPasswordCreationDialog()
+        if creation_dialog.exec_() == QDialog.Accepted:
+            load_dotenv()  # Reload to fetch the saved master password
+            stored_encrypted_password = os.getenv("ENCRYPTED_MASTER_PASSWORD")
+        else:
+            sys.exit(0)
 
     # Show the master password dialog
     password_dialog = MasterPasswordDialog()
     if password_dialog.exec_() == QDialog.Accepted:
-        # If the master password is correct, show the main application window
+        # Launch the main application
         main_window = MainWindow()
         main_window.show()
         sys.exit(app.exec_())
     else:
-        # If the dialog is rejected, exit the application
+        # Exit if master password validation fails
         sys.exit(0)
+
