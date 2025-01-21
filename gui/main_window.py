@@ -11,6 +11,7 @@ from PyQt5.QtWidgets import (QApplication, QDialog, QLabel, QLineEdit,
 
 from modules.models import Password, SessionLocal
 from modules.password_manager import (add_password, list_passwords,
+                                      set_master_password,
                                       verify_master_password)
 
 session = SessionLocal()
@@ -23,8 +24,59 @@ if not encryption_key:
 cipher = Fernet(encryption_key)
 
 stored_encrypted_password = os.getenv("ENCRYPTED_MASTER_PASSWORD")
-if not stored_encrypted_password:
-    raise EnvironmentError("ENCRYPTED_MASTER_PASSWORD not found in .env file.")
+# if not stored_encrypted_password:
+#     raise EnvironmentError("ENCRYPTED_MASTER_PASSWORD not found in .env file.")
+
+
+class MasterPasswordCreationDialog(QDialog):
+    """Dialog to prompt the user to create a master password"""
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Master Password Creation")
+        self.setGeometry(400, 300, 300, 150)
+
+        layout = QVBoxLayout()
+
+        # Label and input field for the master password
+        self.label = QLabel("Choose a master password:")
+        self.password_input = QLineEdit()
+        self.password_input.setEchoMode(QLineEdit.Password)  # Hide text for security
+
+        # Submit and Exit buttons
+        self.submit_button = QPushButton("Submit")
+        self.exit_button = QPushButton("Exit")
+
+        # Add widgets to the layout
+        layout.addWidget(self.label)
+        layout.addWidget(self.password_input)
+        layout.addWidget(self.submit_button)
+        layout.addWidget(self.exit_button)
+
+        self.setLayout(layout)
+
+        # Connect buttons to their respective functions
+        self.submit_button.clicked.connect(self.create_master_password)
+        self.exit_button.clicked.connect(self.reject)
+
+    def create_master_password(self):
+        """Save the master password and close the dialog."""
+        master_password = self.password_input.text().strip()
+
+        if not master_password:
+            QMessageBox.warning(self, "Error", "Master password cannot be empty.")
+            return
+
+        try:
+            set_master_password(master_password, encryption_key.encode())
+            QMessageBox.information(
+                self, "Success", "Master password created successfully."
+            )
+            self.accept()  # Close the dialog
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Error", f"Failed to set master password: {str(e)}"
+            )
 
 
 class MasterPasswordDialog(QDialog):
@@ -42,21 +94,21 @@ class MasterPasswordDialog(QDialog):
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.Password)  # Hide text for security
 
-        # Submit and Cancel buttons
+        # Submit and Exit buttons
         self.submit_button = QPushButton("Submit")
-        self.cancel_button = QPushButton("Cancel")
+        self.exit_button = QPushButton("Exit")
 
         # Add widgets to the layout
         layout.addWidget(self.label)
         layout.addWidget(self.password_input)
         layout.addWidget(self.submit_button)
-        layout.addWidget(self.cancel_button)
+        layout.addWidget(self.exit_button)
 
         self.setLayout(layout)
 
         # Connect buttons to their respective functions
         self.submit_button.clicked.connect(self.validate_password)
-        self.cancel_button.clicked.connect(self.reject)
+        self.exit_button.clicked.connect(self.reject)
 
     def validate_password(self):
         """Validate the entered master password."""
@@ -92,9 +144,9 @@ class AddPasswordDialog(QDialog):
         self.password_label = QLabel("Password:")
         self.password_input = QLineEdit()
 
-        # Save and Cancel buttons
+        # Save and Exit buttons
         self.save_button = QPushButton("Save")
-        self.cancel_button = QPushButton("Cancel")
+        self.exit_button = QPushButton("Exit")
 
         # Add widgets to the layout
         layout.addWidget(self.service_label)
@@ -104,13 +156,13 @@ class AddPasswordDialog(QDialog):
         layout.addWidget(self.password_label)
         layout.addWidget(self.password_input)
         layout.addWidget(self.save_button)
-        layout.addWidget(self.cancel_button)
+        layout.addWidget(self.exit_button)
 
         self.setLayout(layout)
 
         # Connect buttons to their respective functions
         self.save_button.clicked.connect(self.save_password)
-        self.cancel_button.clicked.connect(self.close)
+        self.exit_button.clicked.connect(self.close)
 
     def save_password(self):
         """Save the entered password to the database."""
@@ -248,7 +300,7 @@ class UpdatePasswordDialog(QDialog):
         self.copy_button = QPushButton("Copy Password")
         self.update_button = QPushButton("Update")
         self.delete_button = QPushButton("Delete")
-        self.cancel_button = QPushButton("Cancel")
+        self.exit_button = QPushButton("Exit")
 
         # Add widgets to layout
         layout.addWidget(self.service_label)
@@ -261,7 +313,7 @@ class UpdatePasswordDialog(QDialog):
         layout.addWidget(self.toggle_password_btn)
         layout.addWidget(self.update_button)
         layout.addWidget(self.delete_button)
-        layout.addWidget(self.cancel_button)
+        layout.addWidget(self.exit_button)
 
         self.setLayout(layout)
 
@@ -269,7 +321,7 @@ class UpdatePasswordDialog(QDialog):
         self.copy_button.clicked.connect(lambda: self.copy_to_clipboard(password))
         self.update_button.clicked.connect(self.update_password)
         self.delete_button.clicked.connect(self.delete_password)
-        self.cancel_button.clicked.connect(self.reject)
+        self.exit_button.clicked.connect(self.reject)
 
     def toggle_password_visibility(self):
         """Toggle the visibility of the password."""
@@ -430,7 +482,10 @@ class MainWindow(QMainWindow):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
-    # Show the master password dialog first
+    if not os.getenv("ENCRYPTED_MASTER_PASSWORD"):
+        MasterPasswordCreationDialog().exec_()
+
+    # Show the master password dialog
     password_dialog = MasterPasswordDialog()
     if password_dialog.exec_() == QDialog.Accepted:
         # If the master password is correct, show the main application window
