@@ -193,6 +193,12 @@ class PasswordTable(QTableWidget):
         )  # Set column headers
         self.cipher = cipher  # Store the cipher for decryption
 
+        # Set table properties
+        self.setContentsMargins(0, 0, 0, 0)  # Ensure no margin around the table
+        self.horizontalHeader().setStretchLastSection(True)  # Stretch last column
+        self.horizontalHeader().setDefaultSectionSize(150)  # Adjust column sizes
+        self.verticalHeader().setVisible(False)  # Hide row headers
+
         # Populate the table rows
         for row, password_str in enumerate(password_list):
             # Parse the string to extract service and username
@@ -420,7 +426,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Password Manager")
-        self.setGeometry(100, 100, 600, 400)
+        self.setGeometry(100, 100, 400, 200)
 
         # Main layout
         central_widget = QWidget()
@@ -467,6 +473,8 @@ class MainWindow(QMainWindow):
 
             # Add the PasswordTable to the dialog
             layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(0, 0, 0, 0) # Remove margins
+            layout.setSpacing(0)  # Remove spacing between widgets
             table = PasswordTable(password_list, cipher)
             layout.addWidget(table)
 
@@ -481,6 +489,46 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+
+    app.setStyleSheet(
+        """
+        QMainWindow, QDialog {
+            background-color: #2B2B2B;
+            color: #EAEAEA;
+        }
+        QPushButton {
+            background-color: #444444;
+            color: #EAEAEA;
+            border: 1px solid #555555;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        QPushButton:hover {
+            background-color: #555555;
+        }
+        QLabel {
+            color: #EAEAEA;
+        }
+        QLineEdit {
+            background-color: #3B3B3B;
+            color: #EAEAEA;
+            border: 1px solid #555555;
+            padding: 3px;
+            border-radius: 3px;
+        }
+        QTableWidget {
+            background-color: #3B3B3B;
+            color: #EAEAEA;
+            gridline-color: #555555;
+        }
+        QHeaderView::section {
+            background-color: #444444;
+            color: #EAEAEA;
+            padding: 4px;
+            border: 1px solid #555555;
+        }
+    """
+    )
 
     if not os.getenv("ENCRYPTED_MASTER_PASSWORD"):
         creation_dialog = MasterPasswordCreationDialog()
@@ -500,4 +548,3 @@ if __name__ == "__main__":
     else:
         # Exit if master password validation fails
         sys.exit(0)
-
