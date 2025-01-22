@@ -1,11 +1,9 @@
 import os
 import sys
-import ctypes
 
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPalette
 from PyQt5.QtWidgets import (
     QApplication,
     QDialog,
