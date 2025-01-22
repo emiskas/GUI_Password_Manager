@@ -1,18 +1,32 @@
 import os
 import sys
+import ctypes
 
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QApplication, QDialog, QLabel, QLineEdit,
-                             QMainWindow, QMessageBox, QPushButton,
-                             QTableWidget, QTableWidgetItem, QVBoxLayout,
-                             QWidget)
+from PyQt5.QtGui import QPalette
+from PyQt5.QtWidgets import (
+    QApplication,
+    QDialog,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from modules.models import Password, SessionLocal
-from modules.password_manager import (add_password, list_passwords,
-                                      set_master_password,
-                                      verify_master_password)
+from modules.password_manager import (
+    add_password,
+    list_passwords,
+    set_master_password,
+    verify_master_password,
+)
 
 session = SessionLocal()
 
@@ -24,6 +38,8 @@ if not encryption_key:
 cipher = Fernet(encryption_key)
 
 stored_encrypted_password = os.getenv("ENCRYPTED_MASTER_PASSWORD")
+
+
 # if not stored_encrypted_password:
 #     raise EnvironmentError("ENCRYPTED_MASTER_PASSWORD not found in .env file.")
 
@@ -473,7 +489,7 @@ class MainWindow(QMainWindow):
 
             # Add the PasswordTable to the dialog
             layout = QVBoxLayout(dialog)
-            layout.setContentsMargins(0, 0, 0, 0) # Remove margins
+            layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
             layout.setSpacing(0)  # Remove spacing between widgets
             table = PasswordTable(password_list, cipher)
             layout.addWidget(table)
@@ -487,49 +503,110 @@ class MainWindow(QMainWindow):
             )
 
 
+def is_windows_dark_mode():
+    """Check if Windows is set to dark mode."""
+    try:
+        import winreg as reg  # Windows Registry module
+
+        key = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+        with reg.OpenKey(reg.HKEY_CURRENT_USER, key) as registry_key:
+            value, _ = reg.QueryValueEx(registry_key, "AppsUseLightTheme")
+            return value == 0  # 0 means dark mode, 1 means light mode
+    except ImportError:
+        return False  # Default to light mode if on a non-Windows system
+    except Exception:
+        return False  # Default to light mode in case of an error
+
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
-    app.setStyleSheet(
-        """
-        QMainWindow, QDialog {
-            background-color: #2B2B2B;
-            color: #EAEAEA;
-        }
-        QPushButton {
-            background-color: #444444;
-            color: #EAEAEA;
-            border: 1px solid #555555;
-            padding: 5px;
-            border-radius: 3px;
-        }
-        QPushButton:hover {
-            background-color: #555555;
-        }
-        QLabel {
-            color: #EAEAEA;
-        }
-        QLineEdit {
-            background-color: #3B3B3B;
-            color: #EAEAEA;
-            border: 1px solid #555555;
-            padding: 3px;
-            border-radius: 3px;
-        }
-        QTableWidget {
-            background-color: #3B3B3B;
-            color: #EAEAEA;
-            gridline-color: #555555;
-        }
-        QHeaderView::section {
-            background-color: #444444;
-            color: #EAEAEA;
-            padding: 4px;
-            border: 1px solid #555555;
-        }
-    """
-    )
+    # Check for dark mode on Windows
+    dark_mode = is_windows_dark_mode()
 
+    # Apply theme based on detection
+    if dark_mode:
+        app.setStyleSheet(
+            """
+            QMainWindow, QDialog {
+                background-color: #2B2B2B;
+                color: #EAEAEA;
+            }
+            QPushButton {
+                background-color: #444444;
+                color: #EAEAEA;
+                border: 1px solid #555555;
+                padding: 5px;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background-color: #555555;
+            }
+            QLabel {
+                color: #EAEAEA;
+            }
+            QLineEdit {
+                background-color: #3B3B3B;
+                color: #EAEAEA;
+                border: 1px solid #555555;
+                padding: 3px;
+                border-radius: 3px;
+            }
+            QTableWidget {
+                background-color: #3B3B3B;
+                color: #EAEAEA;
+                gridline-color: #555555;
+            }
+            QHeaderView::section {
+                background-color: #444444;
+                color: #EAEAEA;
+                padding: 4px;
+                border: 1px solid #555555;
+            }
+            """
+        )
+    else:
+        app.setStyleSheet(
+            """
+            QMainWindow, QDialog {
+                background-color: #f0f0f0;
+                color: #000000;
+            }
+            QPushButton {
+                background-color: #ffffff;
+                color: #000000;
+                border: 1px solid #000000;
+                padding: 5px;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background-color: #e0e0e0;
+            }
+            QLabel {
+                color: #000000;
+            }
+            QLineEdit {
+                background-color: #ffffff;
+                color: #000000;
+                border: 1px solid #cccccc;
+                padding: 3px;
+                border-radius: 3px;
+            }
+            QTableWidget {
+                background-color: #ffffff;
+                color: #000000;
+                gridline-color: #cccccc;
+            }
+            QHeaderView::section {
+                background-color: #f0f0f0;
+                color: #000000;
+                padding: 4px;
+                border: 1px solid #dddddd;
+            }
+            """
+        )
+
+    # Your main application logic
     if not os.getenv("ENCRYPTED_MASTER_PASSWORD"):
         creation_dialog = MasterPasswordCreationDialog()
         if creation_dialog.exec_() == QDialog.Accepted:
@@ -538,13 +615,10 @@ if __name__ == "__main__":
         else:
             sys.exit(0)
 
-    # Show the master password dialog
     password_dialog = MasterPasswordDialog()
     if password_dialog.exec_() == QDialog.Accepted:
-        # Launch the main application
         main_window = MainWindow()
         main_window.show()
         sys.exit(app.exec_())
     else:
-        # Exit if master password validation fails
         sys.exit(0)
