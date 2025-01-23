@@ -39,7 +39,7 @@ def add_password(service_name, username, plain_password, cipher):
     password.set_encrypted_password(plain_password, cipher)
     session.add(password)
     session.commit()
-    print(f"Password for {service_name} added successfully!")
+    return f"Password for {service_name} added successfully!"
 
 
 def retrieve_password(service_name, cipher):
@@ -50,21 +50,25 @@ def retrieve_password(service_name, cipher):
     if password:
         decrypted_password = password.get_decrypted_password(cipher)
 
-        print(f"Service: {password.service_name}")
-        print(f"Username: {password.username}")
-        print(f"Password: {decrypted_password}")
+        return f"Service: {password.service_name}\n"\
+               f"Username: {password.username}]=\n"\
+               f"Password: {decrypted_password}"
     else:
-        print(f"No entry found for service: {service_name}")
+        return f"No entry found for service: {service_name}"
 
 
 def list_passwords():
     """List all stored passwords."""
+    password_list = []
+
     passwords = session.query(Password).all()
     if passwords:
         for password in passwords:
-            print(f"Service: {password.service_name}, Username: {password.username}")
+            password_list.append(f"Service: {password.service_name}, Username: {password.username}")
     else:
-        print("No passwords stored yet.")
+        return "No passwords stored yet."
+
+    return password_list
 
 
 def set_master_password(input_password, encryption_key):
@@ -72,7 +76,7 @@ def set_master_password(input_password, encryption_key):
     with open("../.env", "a") as f:
         f.write(f"ENCRYPTED_MASTER_PASSWORD={encrypted_master_password.decode()}\n")
 
-    print("Master password set successfully!")
+    return "Master password set successfully!"
 
 
 def generate_password(length=16):
@@ -90,17 +94,15 @@ def export_passwords(passwords: list = None, encryption_key=None):
             try:
                 passwords = session.query(Password).all()
             except Exception as e:
-                print(f"Error retrieving passwords from database: {str(e)}")
-                return
+                return f"Error retrieving passwords from database: {str(e)}"
 
         backup_dir = os.path.join(os.getcwd(), ".backup")
         if not os.path.exists(backup_dir):
             try:
                 os.makedirs(backup_dir)
-                print(f"Backup directory created at {backup_dir}")
+                return f"Backup directory created at {backup_dir}"
             except OSError as e:
-                print(f"Error creating .backup directory: {e}")
-                return
+                return f"Error creating .backup directory: {e}"
 
         today = datetime.datetime.now().strftime("%Y-%m-%d")
         path = os.path.join(backup_dir, f"{today}.txt")
@@ -116,7 +118,7 @@ def export_passwords(passwords: list = None, encryption_key=None):
                     )
                     continue
 
-        print(f"Passwords exported successfully to {path} (plain text)!")
+        return f"Passwords exported successfully to {path} (plain text)!"
 
         cipher = Fernet(encryption_key)
         try:
@@ -128,19 +130,19 @@ def export_passwords(passwords: list = None, encryption_key=None):
             with open(path, "wb") as f:
                 f.write(encrypted_data)
 
-            print(f"File encrypted successfully!")
+            return f"File encrypted successfully!"
 
         except Exception as e:
-            print(f"Error during file encryption: {str(e)}")
+            return f"Error during file encryption: {str(e)}"
 
     except Exception as e:
-        print(f"Unexpected error occurred during export: {str(e)}")
+       return f"Unexpected error occurred during export: {str(e)}"
 
 
 def import_passwords(path, encryption_key):
     if not path:
-        print("You must provide a path to the file.")
-        return
+        return "You must provide a path to the file."
+
 
     try:
         with open(path, "rb") as f:
@@ -182,17 +184,17 @@ def import_passwords(path, encryption_key):
                     ).decode("utf-8")
 
                     add_password(service, username, decrypted_password, cipher)
-                    print(f"Imported password for {service}")
+                    return f"Imported password for {service}"
 
                 except Exception as e:
-                    print(f"Error decrypting password for {service}: {str(e)}")
+                    return f"Error decrypting password for {service}: {str(e)}"
 
         except Exception as e:
-            print(f"Error decrypting file content: {str(e)}")
+            return f"Error decrypting file content: {str(e)}"
 
     except FileNotFoundError:
-        print(f"Error: The file at {path} was not found.")
+       return f"Error: The file at {path} was not found."
     except IOError as e:
-        print(f"Error opening or reading the file {path}: {e}")
+        return f"Error opening or reading the file {path}: {e}"
     except Exception as e:
-        print(f"Unexpected error occurred during import: {str(e)}")
+        return f"Unexpected error occurred during import: {str(e)}"

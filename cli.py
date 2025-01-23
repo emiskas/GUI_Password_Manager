@@ -14,6 +14,7 @@ from modules.password_manager import (
     retrieve_password,
     set_master_password,
     verify_master_password,
+    generate_key
 )
 
 session = SessionLocal()
@@ -96,7 +97,7 @@ def main():
             print("Master password already set.")
             return
 
-        set_master_password(args.master_password, encryption_key.encode())
+        print(set_master_password(args.master_password, encryption_key.encode()))
         return
 
     elif args.command == "generate":
@@ -126,20 +127,20 @@ def main():
             )
             return
 
-        add_password(
+        print(
+            add_password(
             args.service_name,
             args.username,
             args.plain_password,
             cipher,
         )
+        )
 
     elif args.command == "export":
-        export_passwords(args.passwords, encryption_key)
-        print("Passwords exported successfully!")
+        print(export_passwords(args.passwords, encryption_key))
 
     elif args.command == "import":
-        import_passwords(args.path, encryption_key)
-        print("Passwords imported successfully!")
+        print(import_passwords(args.path, encryption_key))
 
     elif args.command == "delete":
         password = (
@@ -172,10 +173,10 @@ def main():
 
     elif args.command == "retrieve":
         cipher = Fernet(encryption_key)
-        retrieve_password(args.service_name, cipher)
+        print(retrieve_password(args.service_name, cipher))
 
     elif args.command == "list":
-        list_passwords()
+        print(list_passwords())
 
 
 if __name__ == "__main__":
