@@ -8,10 +8,12 @@ from dialogs.master_password import (MasterPasswordCreationDialog,
 from dialogs.password import AddPasswordDialog
 from dotenv import load_dotenv
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QApplication, QDialog, QLabel, QMainWindow,
-                             QMessageBox, QPushButton, QVBoxLayout, QWidget)
+from PyQt5.QtWidgets import (QApplication, QDialog, QFileDialog, QLabel,
+                             QMainWindow, QMessageBox, QPushButton,
+                             QVBoxLayout, QWidget)
 
-from modules.password_manager import list_passwords
+from modules.password_manager import (export_passwords, import_passwords,
+                                      list_passwords)
 
 # Load environment variables
 load_dotenv()
@@ -39,6 +41,8 @@ class MainWindow(QMainWindow):
         # Buttons for adding and listing passwords
         self.add_password_btn = QPushButton("Add Password")
         self.list_passwords_btn = QPushButton("List Passwords")
+        self.export_passwords_btn = QPushButton("Export Passwords")
+        self.import_passwords_btn = QPushButton("Import Passwords")
 
         # Status label for feedback
         self.status_label = QLabel("Welcome to Password Manager")
@@ -48,6 +52,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.status_label)
         layout.addWidget(self.add_password_btn)
         layout.addWidget(self.list_passwords_btn)
+        layout.addWidget(self.export_passwords_btn)
+        layout.addWidget(self.import_passwords_btn)
 
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
@@ -55,6 +61,10 @@ class MainWindow(QMainWindow):
         # Connect buttons to their respective functions
         self.add_password_btn.clicked.connect(self.open_add_password_dialog)
         self.list_passwords_btn.clicked.connect(self.display_passwords)
+        self.export_passwords_btn.clicked.connect(export_passwords)
+        self.import_passwords_btn.clicked.connect(
+            lambda: self.handle_import(encryption_key)
+        )
 
     def open_add_password_dialog(self):
         """Open the dialog for adding a new password."""
@@ -89,6 +99,34 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(
                 self, "Error", f"Failed to retrieve passwords: {str(e)}"
             )
+
+    def display_backup(self):
+        """Show a dialog with backup files as buttons."""
+        backup_dir = "backup"
+        if not os.path.exists(backup_dir):
+            QMessageBox.warning(self, "Error", "No backup directory found.")
+            return None
+
+        files, _ = QFileDialog.getOpenFileName(
+            self, "Select Backup File", backup_dir, "Text Files (*.txt);;All Files (*)"
+        )
+
+        print(f"Selected file: {files}")  # Debugging: Print the selected file path
+        return files
+
+    def handle_import(self, encryption_key):
+        """Handle the import process."""
+        selected_file = self.display_backup()  # Get the selected file
+        if not selected_file:  # If no file is selected, do nothing
+            return
+
+        result = import_passwords(selected_file, encryption_key)  # Call the import function
+        QMessageBox.information(self, "Import Status", result)
+
+    def handle_export(self):
+        """Handle the export process."""
+        result = export_passwords()  # Call the export function
+        QMessageBox.information(self, "Export Status", result)
 
 
 def is_windows_dark_mode():

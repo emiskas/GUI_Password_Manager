@@ -96,13 +96,13 @@ def export_passwords(passwords: list = None, encryption_key=None):
             except Exception as e:
                 return f"Error retrieving passwords from database: {str(e)}"
 
-        backup_dir = os.path.join(os.getcwd(), ".backup")
+        backup_dir = os.path.join(os.getcwd(), "backup")
         if not os.path.exists(backup_dir):
             try:
                 os.makedirs(backup_dir)
                 return f"Backup directory created at {backup_dir}"
             except OSError as e:
-                return f"Error creating .backup directory: {e}"
+                return f"Error creating backup directory: {e}"
 
         today = datetime.datetime.now().strftime("%Y-%m-%d")
         path = os.path.join(backup_dir, f"{today}.txt")
