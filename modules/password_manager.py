@@ -1,11 +1,23 @@
 import datetime
 import os
+from pathlib import Path
 
 from cryptography.fernet import Fernet
+
 from .models import Password, SessionLocal, init_db
 
 init_db()
 session = SessionLocal()
+
+
+def get_env_path():
+    """
+    Resolve the path to the .env file.
+
+    Returns:
+        Path: Path object pointing to the .env file.
+    """
+    return Path(__file__).parent.parent / ".env"
 
 
 def generate_key():
@@ -50,9 +62,11 @@ def retrieve_password(service_name, cipher):
     if password:
         decrypted_password = password.get_decrypted_password(cipher)
 
-        return f"Service: {password.service_name}\n"\
-               f"Username: {password.username}]=\n"\
-               f"Password: {decrypted_password}"
+        return (
+            f"Service: {password.service_name}\n"
+            f"Username: {password.username}]=\n"
+            f"Password: {decrypted_password}"
+        )
     else:
         return f"No entry found for service: {service_name}"
 
@@ -64,7 +78,9 @@ def list_passwords():
     passwords = session.query(Password).all()
     if passwords:
         for password in passwords:
-            password_list.append(f"Service: {password.service_name}, Username: {password.username}")
+            password_list.append(
+                f"Service: {password.service_name}, Username: {password.username}"
+            )
     else:
         return "No passwords stored yet."
 
@@ -72,11 +88,19 @@ def list_passwords():
 
 
 def set_master_password(input_password, encryption_key):
-    encrypted_master_password = encrypt_master_password(input_password, encryption_key)
-    with open("../.env", "a") as f:
-        f.write(f"ENCRYPTED_MASTER_PASSWORD={encrypted_master_password.decode()}\n")
+    """
+    Create a master password.
+    """
 
-    return "Master password set successfully!"
+    encrypted_master_password = encrypt_master_password(input_password, encryption_key)
+    env_path = get_env_path()
+
+    try:
+        with open(env_path, "a") as f:
+            f.write(f"ENCRYPTED_MASTER_PASSWORD={encrypted_master_password.decode()}\n")
+            return "Master password set successfully!"
+    except Exception as e:
+        raise ValueError(f"Failed to save master password: {e}")
 
 
 def generate_password(length=16):
@@ -136,13 +160,12 @@ def export_passwords(passwords: list = None, encryption_key=None):
             return f"Error during file encryption: {str(e)}"
 
     except Exception as e:
-       return f"Unexpected error occurred during export: {str(e)}"
+        return f"Unexpected error occurred during export: {str(e)}"
 
 
 def import_passwords(path, encryption_key):
     if not path:
         return "You must provide a path to the file."
-
 
     try:
         with open(path, "rb") as f:
@@ -193,7 +216,7 @@ def import_passwords(path, encryption_key):
             return f"Error decrypting file content: {str(e)}"
 
     except FileNotFoundError:
-       return f"Error: The file at {path} was not found."
+        return f"Error: The file at {path} was not found."
     except IOError as e:
         return f"Error opening or reading the file {path}: {e}"
     except Exception as e:
