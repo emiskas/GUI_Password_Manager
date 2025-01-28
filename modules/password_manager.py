@@ -2,7 +2,10 @@ import datetime
 import os
 
 from cryptography.fernet import Fernet
+
 from .models import Password, SessionLocal, init_db
+
+# TODO: Use the same convention when returning or printing function outputs
 
 init_db()
 session = SessionLocal()
@@ -39,7 +42,7 @@ def add_password(service_name, username, plain_password, cipher):
     password.set_encrypted_password(plain_password, cipher)
     session.add(password)
     session.commit()
-    return f"Password for {service_name} added successfully!"
+    return f"Password for {service_name} added successfully"
 
 
 def retrieve_password(service_name, cipher):
@@ -50,9 +53,11 @@ def retrieve_password(service_name, cipher):
     if password:
         decrypted_password = password.get_decrypted_password(cipher)
 
-        return f"Service: {password.service_name}\n"\
-               f"Username: {password.username}]=\n"\
-               f"Password: {decrypted_password}"
+        return (
+            f"Service: {password.service_name}\n"
+            f"Username: {password.username}]=\n"
+            f"Password: {decrypted_password}"
+        )
     else:
         return f"No entry found for service: {service_name}"
 
@@ -64,7 +69,9 @@ def list_passwords():
     passwords = session.query(Password).all()
     if passwords:
         for password in passwords:
-            password_list.append(f"Service: {password.service_name}, Username: {password.username}")
+            password_list.append(
+                f"Service: {password.service_name}, Username: {password.username}"
+            )
     else:
         return "No passwords stored yet."
 
@@ -88,7 +95,7 @@ def generate_password(length=16):
     return "".join(random.choice(characters) for i in range(0, length))
 
 
-def export_passwords(passwords: list = None, encryption_key=None):
+def export_passwords(encryption_key, passwords: list = None):
     try:
         if not passwords:
             try:
@@ -110,7 +117,11 @@ def export_passwords(passwords: list = None, encryption_key=None):
         with open(path, "w") as f:
             for password in passwords:
                 try:
-                    content = f"Service: {password.service_name}, Username: {password.username}, Password: {password.encrypted_password.decode()}\n"
+                    content = (
+                        f"Service: {password.service_name}, "
+                        f"Username: {password.username}, "
+                        f"Password: {password.encrypted_password.decode()}\n"
+                    )
                     f.write(content)
                 except Exception as write_error:
                     print(
@@ -118,7 +129,7 @@ def export_passwords(passwords: list = None, encryption_key=None):
                     )
                     continue
 
-        return f"Passwords exported successfully to {path} (plain text)!"
+        print(f"Passwords exported successfully to {path}")
 
         cipher = Fernet(encryption_key)
         try:
@@ -136,13 +147,12 @@ def export_passwords(passwords: list = None, encryption_key=None):
             return f"Error during file encryption: {str(e)}"
 
     except Exception as e:
-       return f"Unexpected error occurred during export: {str(e)}"
+        return f"Unexpected error occurred during export: {str(e)}"
 
 
 def import_passwords(path, encryption_key):
     if not path:
         return "You must provide a path to the file."
-
 
     try:
         with open(path, "rb") as f:
@@ -175,8 +185,10 @@ def import_passwords(path, encryption_key):
                     .filter(Password.username == username)
                     .first()
                 ):
+                    print(
+                        f"Service '{service}' with the username '{username}' already exists. Skipping.."
+                    )
                     continue
-
                 try:
                     encrypted_password_bytes = encrypted_password.encode("utf-8")
                     decrypted_password = cipher.decrypt(
@@ -184,7 +196,7 @@ def import_passwords(path, encryption_key):
                     ).decode("utf-8")
 
                     add_password(service, username, decrypted_password, cipher)
-                    return f"Imported password for {service}"
+                    print(f"Imported password for {service}")
 
                 except Exception as e:
                     return f"Error decrypting password for {service}: {str(e)}"
@@ -193,8 +205,10 @@ def import_passwords(path, encryption_key):
             return f"Error decrypting file content: {str(e)}"
 
     except FileNotFoundError:
-       return f"Error: The file at {path} was not found."
+        return f"Error: The file at {path} was not found."
     except IOError as e:
         return f"Error opening or reading the file {path}: {e}"
     except Exception as e:
         return f"Unexpected error occurred during import: {str(e)}"
+
+    return f"Successfully imported accounts from: {path}"

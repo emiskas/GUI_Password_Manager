@@ -61,7 +61,7 @@ class MainWindow(QMainWindow):
         # Connect buttons to their respective functions
         self.add_password_btn.clicked.connect(self.open_add_password_dialog)
         self.list_passwords_btn.clicked.connect(self.display_passwords)
-        self.export_passwords_btn.clicked.connect(export_passwords)
+        self.export_passwords_btn.clicked.connect(self.handle_export)
         self.import_passwords_btn.clicked.connect(
             lambda: self.handle_import(encryption_key)
         )
@@ -125,7 +125,7 @@ class MainWindow(QMainWindow):
 
     def handle_export(self):
         """Handle the export process."""
-        result = export_passwords()  # Call the export function
+        result = export_passwords(encryption_key)  # Call the export function
         QMessageBox.information(self, "Export Status", result)
 
 

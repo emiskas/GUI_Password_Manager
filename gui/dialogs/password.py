@@ -112,7 +112,7 @@ class UpdatePasswordDialog(QDialog):
 
         # Buttons
         self.copy_button = QPushButton("Copy Password")
-        self.update_button = QPushButton("Update")
+        self.update_button = QPushButton("Save")
         self.delete_button = QPushButton("Delete")
         self.exit_button = QPushButton("Exit")
 
