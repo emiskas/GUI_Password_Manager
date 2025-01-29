@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (QApplication, QDialog, QLabel, QLineEdit,
                              QMessageBox, QPushButton, QVBoxLayout)
 
 from modules.models import Password, SessionLocal
-from modules.password_manager import add_password
+from modules.password_manager import add_password, generate_password
 
 session = SessionLocal()
 
@@ -18,7 +18,18 @@ encryption_key = os.getenv("ENCRYPTION_KEY")
 cipher = Fernet(encryption_key)
 
 
-class AddPasswordDialog(QDialog):
+class BasePasswordDialog(QDialog):
+    """Base class for password dialogs with shared functionalities."""
+
+    @staticmethod
+    def add_generated_password(password_input):
+        """Generate a random password and set it in the input field."""
+        new_password = generate_password()  # Generate a new password
+        password_input.setText(new_password)  # Set the new password in the field
+        QMessageBox.information(None, "Generated", "New password has been generated!")
+
+
+class AddPasswordDialog(BasePasswordDialog):
     """Dialog for adding a new password to the database."""
 
     def __init__(self):
@@ -36,8 +47,9 @@ class AddPasswordDialog(QDialog):
         self.password_label = QLabel("Password:")
         self.password_input = QLineEdit()
 
-        # Save and Exit buttons
+        # Buttons
         self.save_button = QPushButton("Save")
+        self.generate_button = QPushButton("Generate Password")
         self.exit_button = QPushButton("Exit")
 
         # Add widgets to the layout
@@ -48,12 +60,16 @@ class AddPasswordDialog(QDialog):
         layout.addWidget(self.password_label)
         layout.addWidget(self.password_input)
         layout.addWidget(self.save_button)
+        layout.addWidget(self.generate_button)
         layout.addWidget(self.exit_button)
 
         self.setLayout(layout)
 
         # Connect buttons to their respective functions
         self.save_button.clicked.connect(self.save_password)
+        self.generate_button.clicked.connect(
+            lambda: self.add_generated_password(self.password_input)
+        )
         self.exit_button.clicked.connect(self.close)
 
     def save_password(self):
@@ -75,7 +91,7 @@ class AddPasswordDialog(QDialog):
             QMessageBox.critical(self, "Error", f"Failed to add password: {str(e)}")
 
 
-class UpdatePasswordDialog(QDialog):
+class UpdatePasswordDialog(BasePasswordDialog):
     """Dialog for viewing, updating, and deleting a password."""
 
     def __init__(self, service, username, password, cipher, row, parent_table):
@@ -111,6 +127,7 @@ class UpdatePasswordDialog(QDialog):
         self.toggle_password_btn.clicked.connect(self.toggle_password_visibility)
 
         # Buttons
+        self.generate_button = QPushButton("Generate Password")
         self.copy_button = QPushButton("Copy Password")
         self.update_button = QPushButton("Save")
         self.delete_button = QPushButton("Delete")
@@ -123,8 +140,9 @@ class UpdatePasswordDialog(QDialog):
         layout.addWidget(self.username_input)
         layout.addWidget(self.password_label)
         layout.addWidget(self.password_input)
-        layout.addWidget(self.copy_button)
         layout.addWidget(self.toggle_password_btn)
+        layout.addWidget(self.copy_button)
+        layout.addWidget(self.generate_button)
         layout.addWidget(self.update_button)
         layout.addWidget(self.delete_button)
         layout.addWidget(self.exit_button)
@@ -132,6 +150,9 @@ class UpdatePasswordDialog(QDialog):
         self.setLayout(layout)
 
         # Button connections
+        self.generate_button.clicked.connect(
+            lambda: self.add_generated_password(self.password_input)
+        )
         self.copy_button.clicked.connect(lambda: self.copy_to_clipboard(password))
         self.update_button.clicked.connect(self.update_password)
         self.delete_button.clicked.connect(self.delete_password)
