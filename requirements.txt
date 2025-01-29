@@ -8,6 +8,7 @@ isort==5.13.2
 mypy-extensions==1.0.0
 packaging==24.2
 pathspec==0.12.1
+pillow==11.1.0
 platformdirs==4.3.6
 pycparser==2.22
 pyinstaller==6.11.1
@@ -16,6 +17,7 @@ PyQt5==5.15.11
 PyQt5-Qt5==5.15.16
 PyQt5_sip==12.16.1
 python-dotenv==1.0.1
+qrcode==8.0
 setuptools==75.8.0
 SQLAlchemy==2.0.37
 typing_extensions==4.12.2
