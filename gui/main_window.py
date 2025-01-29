@@ -1,6 +1,9 @@
 import os
 import sys
+import json
+from io import BytesIO
 
+import qrcode
 from components.password_table import PasswordTable
 from cryptography.fernet import Fernet
 from dialogs.master_password import (MasterPasswordCreationDialog,
@@ -8,12 +11,16 @@ from dialogs.master_password import (MasterPasswordCreationDialog,
 from dialogs.password import AddPasswordDialog
 from dotenv import load_dotenv
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import (QApplication, QDialog, QFileDialog, QLabel,
                              QMainWindow, QMessageBox, QPushButton,
                              QVBoxLayout, QWidget)
 
 from modules.password_manager import (export_passwords, import_passwords,
                                       list_passwords)
+from modules.models import Password, SessionLocal
+
+session = SessionLocal()
 
 # Load environment variables
 load_dotenv()
@@ -24,6 +31,49 @@ cipher = Fernet(encryption_key)
 
 # Get the master password
 stored_encrypted_password = os.getenv("ENCRYPTED_MASTER_PASSWORD")
+
+
+class QRCodeDialog(QDialog):
+    """Dialog to display QR Code dynamically."""
+
+    def __init__(self, data):
+        super().__init__()
+        self.setWindowTitle("QR Code")
+        self.setGeometry(300, 300, 300, 300)
+
+        layout = QVBoxLayout()
+
+        # Generate and display QR code
+        self.qr_label = QLabel(self)
+        self.qr_label.setAlignment(Qt.AlignCenter)
+        self.display_qr_code(data)
+
+        layout.addWidget(self.qr_label)
+        self.setLayout(layout)
+
+    def display_qr_code(self, data):
+        """Generate QR code and display it dynamically."""
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=5,
+            border=4,
+        )
+        qr.add_data(data)
+        qr.make(fit=True)
+
+        # Convert QR Code to an image in memory
+        img = qr.make_image(fill="black", back_color="white")
+        buffer = BytesIO()
+        img.save(buffer, format="PNG")
+        buffer.seek(0)
+
+        # Load the image into PyQt QLabel
+        image = QImage()
+        image.loadFromData(buffer.getvalue(), "PNG")
+        pixmap = QPixmap.fromImage(image)
+
+        self.qr_label.setPixmap(pixmap)
 
 
 class MainWindow(QMainWindow):
@@ -43,6 +93,7 @@ class MainWindow(QMainWindow):
         self.list_passwords_btn = QPushButton("List Passwords")
         self.export_passwords_btn = QPushButton("Export Passwords")
         self.import_passwords_btn = QPushButton("Import Passwords")
+        self.qr_button = QPushButton("Export via QR Code")
 
         # Status label for feedback
         self.status_label = QLabel("Welcome to Password Manager")
@@ -54,6 +105,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.list_passwords_btn)
         layout.addWidget(self.export_passwords_btn)
         layout.addWidget(self.import_passwords_btn)
+        layout.addWidget(self.qr_button)
 
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
@@ -65,6 +117,22 @@ class MainWindow(QMainWindow):
         self.import_passwords_btn.clicked.connect(
             lambda: self.handle_import(encryption_key)
         )
+        self.qr_button.clicked.connect(self.show_qr_code)
+
+    def show_qr_code(self):
+        """Show QR Code dialog with sample data."""
+        passwords = [
+                    {
+                        "service": p.service_name,
+                        "username": p.username,
+                        "password": cipher.decrypt(p.encrypted_password).decode()
+                    }
+                    for p in session.query(Password).all()
+                ]
+        qr_data = json.dumps(passwords)
+
+        self.qr_dialog = QRCodeDialog(qr_data)
+        self.qr_dialog.exec_()
 
     def open_add_password_dialog(self):
         """Open the dialog for adding a new password."""
@@ -120,7 +188,9 @@ class MainWindow(QMainWindow):
         if not selected_file:  # If no file is selected, do nothing
             return
 
-        result = import_passwords(selected_file, encryption_key)  # Call the import function
+        result = import_passwords(
+            selected_file, encryption_key
+        )  # Call the import function
         QMessageBox.information(self, "Import Status", result)
 
     def handle_export(self):
