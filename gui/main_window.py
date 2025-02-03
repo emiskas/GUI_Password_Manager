@@ -311,6 +311,8 @@ if __name__ == "__main__":
         else:
             sys.exit(0)
 
+    print("good")
+    load_dotenv()
     password_dialog = MasterPasswordDialog()
     if password_dialog.exec_() == QDialog.Accepted:
         main_window = MainWindow()
