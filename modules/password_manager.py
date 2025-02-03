@@ -2,6 +2,7 @@ import datetime
 import os
 
 from cryptography.fernet import Fernet
+from dotenv import load_dotenv
 
 from .models import Password, SessionLocal, init_db
 
@@ -80,8 +81,17 @@ def list_passwords():
 
 def set_master_password(input_password, encryption_key):
     encrypted_master_password = encrypt_master_password(input_password, encryption_key)
-    with open("../.env", "a") as f:
+
+    env_path = os.path.join(os.getcwd(), ".env")
+
+    with open(env_path, "a") as f:
         f.write(f"ENCRYPTED_MASTER_PASSWORD={encrypted_master_password.decode()}\n")
+
+    # Reload environment variables
+    load_dotenv(override=True)
+
+    # Fetch the latest stored password
+    stored_password = os.getenv("ENCRYPTED_MASTER_PASSWORD")
 
     return "Master password set successfully!"
 

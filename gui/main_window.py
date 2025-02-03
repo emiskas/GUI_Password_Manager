@@ -1,6 +1,6 @@
+import json
 import os
 import sys
-import json
 from io import BytesIO
 
 import qrcode
@@ -16,9 +16,9 @@ from PyQt5.QtWidgets import (QApplication, QDialog, QFileDialog, QLabel,
                              QMainWindow, QMessageBox, QPushButton,
                              QVBoxLayout, QWidget)
 
+from modules.models import Password, SessionLocal
 from modules.password_manager import (export_passwords, import_passwords,
                                       list_passwords)
-from modules.models import Password, SessionLocal
 
 session = SessionLocal()
 
@@ -122,13 +122,13 @@ class MainWindow(QMainWindow):
     def show_qr_code(self):
         """Show QR Code dialog with sample data."""
         passwords = [
-                    {
-                        "service": p.service_name,
-                        "username": p.username,
-                        "password": cipher.decrypt(p.encrypted_password).decode()
-                    }
-                    for p in session.query(Password).all()
-                ]
+            {
+                "service": p.service_name,
+                "username": p.username,
+                "password": cipher.decrypt(p.encrypted_password).decode(),
+            }
+            for p in session.query(Password).all()
+        ]
         qr_data = json.dumps(passwords)
 
         self.qr_dialog = QRCodeDialog(qr_data)
@@ -311,8 +311,6 @@ if __name__ == "__main__":
         else:
             sys.exit(0)
 
-    print("good")
-    load_dotenv()
     password_dialog = MasterPasswordDialog()
     if password_dialog.exec_() == QDialog.Accepted:
         main_window = MainWindow()

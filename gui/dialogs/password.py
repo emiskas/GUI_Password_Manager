@@ -2,18 +2,12 @@ import os
 
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
-from PyQt5.QtWidgets import (
-    QApplication,
-    QDialog,
-    QLabel,
-    QLineEdit,
-    QMessageBox,
-    QPushButton,
-    QVBoxLayout,
-)
+from PyQt5.QtWidgets import (QApplication, QDialog, QLabel, QLineEdit,
+                             QMessageBox, QPushButton, QVBoxLayout)
 
 from modules.models import Password, SessionLocal
-from modules.password_manager import add_password, generate_password, generate_key
+from modules.password_manager import (add_password, generate_key,
+                                      generate_password)
 
 session = SessionLocal()
 
@@ -23,7 +17,7 @@ load_dotenv()
 if not os.getenv("ENCRYPTION_KEY"):
     key = generate_key().decode()
 
-    with open("/home/emiskas/PycharmProjects/Password-manager/.env", "a") as f:
+    with open("../gui/.env", "a") as f:
         f.write(f"ENCRYPTION_KEY={key}\n")
 
 # Reload environment variables

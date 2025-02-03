@@ -15,9 +15,6 @@ load_dotenv()
 encryption_key = os.getenv("ENCRYPTION_KEY")
 cipher = Fernet(encryption_key)
 
-# Get the master password
-stored_encrypted_password = os.getenv("ENCRYPTED_MASTER_PASSWORD")
-
 
 class MasterPasswordCreationDialog(QDialog):
     """Dialog to prompt the user to create a master password"""
@@ -60,6 +57,13 @@ class MasterPasswordCreationDialog(QDialog):
 
         try:
             set_master_password(master_password, encryption_key.encode())
+
+            # Force reload .env and update global variable
+            load_dotenv(override=True)
+
+            global stored_encrypted_password
+            stored_encrypted_password = os.getenv("ENCRYPTED_MASTER_PASSWORD")
+
             QMessageBox.information(
                 self, "Success", "Master password created successfully."
             )
@@ -104,6 +108,16 @@ class MasterPasswordDialog(QDialog):
     def validate_password(self):
         """Validate the entered master password."""
         input_password = self.password_input.text()
+
+        # Reload .env to get the latest master password
+        load_dotenv(override=True)
+        stored_encrypted_password = os.getenv("ENCRYPTED_MASTER_PASSWORD")
+
+        if stored_encrypted_password is None:
+            QMessageBox.critical(
+                self, "Error", "Failed to load master password from .env"
+            )
+            return
 
         # Check if the entered master password is correct
         if verify_master_password(
