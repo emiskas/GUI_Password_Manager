@@ -28,9 +28,6 @@ if not encryption_key:
 
 cipher = Fernet(encryption_key)
 
-# Get the master password
-stored_encrypted_password = os.getenv("ENCRYPTED_MASTER_PASSWORD")
-
 
 class MasterPasswordCreationDialog(QDialog):
     """Dialog to prompt the user to create a master password"""
@@ -73,10 +70,11 @@ class MasterPasswordCreationDialog(QDialog):
 
         try:
             set_master_password(master_password, encryption_key.encode())
-            # Reload the .env file to reflect the new master password
-            load_dotenv(get_env_path())
 
-            # Explicitly fetch the updated stored_encrypted_password
+            # Force reload .env and update global variable
+            load_dotenv(override=True)
+
+            # Explicitly fetch the updated stored_encrypted_pasword
             global stored_encrypted_password
             stored_encrypted_password = os.getenv("ENCRYPTED_MASTER_PASSWORD")
 
@@ -123,30 +121,25 @@ class MasterPasswordDialog(QDialog):
 
     def validate_password(self):
         """Validate the entered master password."""
-        input_password = self.password_input.text().strip()
+        input_password = self.password_input.text()
 
-        if not input_password:
-            QMessageBox.warning(self, "Error", "Master password cannot be empty.")
-            return
+        # Reload .env to get the latest master password
+        load_dotenv(override=True)
+        stored_encrypted_password = os.getenv("ENCRYPTED_MASTER_PASSWORD")
 
         if stored_encrypted_password is None:
             QMessageBox.critical(
-                self, "Error", "Master password is not set. Please create one first."
+                self, "Error", "Failed to load master password from .env"
             )
             return
 
-        try:
-            # Check if the entered master password is correct
-            if verify_master_password(
-                input_password,
-                stored_encrypted_password.encode(),
-                encryption_key.encode(),
-            ):
-                self.accept()  # Close the dialog and proceed to the main application
-            else:
-                QMessageBox.critical(self, "Error", "Incorrect master password.")
-                self.password_input.clear()
-        except Exception as e:
-            QMessageBox.critical(
-                self, "Error", f"Failed to verify master password: {str(e)}"
-            )
+        # Check if the entered master password is correct
+        if verify_master_password(
+            input_password,
+            stored_encrypted_password.encode(),
+            encryption_key.encode(),
+        ):
+            self.accept()  # Close the dialog and proceed to the main application
+        else:
+            QMessageBox.critical(self, "Error", "Incorrect master password.")
+            self.password_input.clear()

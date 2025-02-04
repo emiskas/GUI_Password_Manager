@@ -60,7 +60,10 @@ build/
 
 # Ignore the .idea folder
 .idea/
-/.env
 
-# Ignore the .backup folder
-.backup/
+# Ignore the .env files
+/.env
+/gui/.env
+
+# Ignore the backup folder
+backup/
