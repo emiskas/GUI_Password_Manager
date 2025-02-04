@@ -5,11 +5,12 @@ from io import BytesIO
 
 import qrcode
 from components.password_table import PasswordTable
+
 from cryptography.fernet import Fernet
-from dialogs.master_password import (MasterPasswordCreationDialog,
+from gui.dialogs.master_password import (MasterPasswordCreationDialog,
                                      MasterPasswordDialog)
-from dialogs.password import AddPasswordDialog
-from dotenv import load_dotenv
+from gui.dialogs.password import AddPasswordDialog
+from dotenv import find_dotenv, load_dotenv
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import (QApplication, QDialog, QFileDialog, QLabel,
@@ -18,15 +19,30 @@ from PyQt5.QtWidgets import (QApplication, QDialog, QFileDialog, QLabel,
 
 from modules.models import Password, SessionLocal
 from modules.password_manager import (export_passwords, import_passwords,
-                                      list_passwords)
+                                      list_passwords, generate_key)
 
 session = SessionLocal()
 
 # Load environment variables
-load_dotenv()
+dotenv_path = find_dotenv()
+load_dotenv(dotenv_path)
 
-# Get the encryption key
 encryption_key = os.getenv("ENCRYPTION_KEY")
+
+# Create an encryption key if not yet created
+if not encryption_key:
+    encryption_key = generate_key().decode()
+    env_path = get_env_path()
+
+    with open(env_path, "a") as f:
+        f.write(f"ENCRYPTION_KEY={encryption_key}\n")
+
+    print("ENCRYPTION_KEY generated and saved.")
+
+    load_dotenv(env_path)
+    encryption_key = os.getenv("ENCRYPTION_KEY")
+
+# Create a cipher from the encryption key
 cipher = Fernet(encryption_key)
 
 # Get the master password

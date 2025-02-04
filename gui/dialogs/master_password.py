@@ -1,18 +1,31 @@
 import os
+import sys
+from pathlib import Path
 
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 from PyQt5.QtWidgets import (QDialog, QLabel, QLineEdit, QMessageBox,
                              QPushButton, QVBoxLayout)
 
-from modules.password_manager import (set_master_password,
-                                      verify_master_password)
+from modules.password_manager import (generate_key, set_master_password,
+                                      verify_master_password, get_env_path)
 
-# Load environment variables
-load_dotenv()
+# Load environment variables using centralized .env path
+load_dotenv(dotenv_path=get_env_path())
 
-# Get the encryption key
 encryption_key = os.getenv("ENCRYPTION_KEY")
+
+# Create an encryption key if not yet created
+if not encryption_key:
+    encryption_key = generate_key().decode()
+    try:
+        with open(get_env_path(), "a") as f:
+            f.write(f"ENCRYPTION_KEY={encryption_key}\n")
+        print("ENCRYPTION_KEY generated and saved.")
+
+    except Exception as e:
+        print(f"Failed to write ENCRYPTION_KEY to .env: {e}")
+
 cipher = Fernet(encryption_key)
 
 
@@ -61,6 +74,7 @@ class MasterPasswordCreationDialog(QDialog):
             # Force reload .env and update global variable
             load_dotenv(override=True)
 
+            # Explicitly fetch the updated stored_encrypted_pasword
             global stored_encrypted_password
             stored_encrypted_password = os.getenv("ENCRYPTED_MASTER_PASSWORD")
 

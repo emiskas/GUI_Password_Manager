@@ -1,5 +1,6 @@
 import datetime
 import os
+from pathlib import Path
 
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
@@ -10,6 +11,16 @@ from .models import Password, SessionLocal, init_db
 
 init_db()
 session = SessionLocal()
+
+
+def get_env_path():
+    """
+    Resolve the path to the .env file.
+
+    Returns:
+        Path: Path object pointing to the .env file.
+    """
+    return Path(__file__).parent.parent / ".env"
 
 
 def generate_key():
@@ -80,6 +91,10 @@ def list_passwords():
 
 
 def set_master_password(input_password, encryption_key):
+    """
+    Create a master password.
+    """
+
     encrypted_master_password = encrypt_master_password(input_password, encryption_key)
 
     env_path = os.path.join(os.getcwd(), ".env")

@@ -11,8 +11,8 @@ from modules.password_manager import (add_password, generate_key,
 
 session = SessionLocal()
 
-# Load environment variables
-load_dotenv()
+# Load environment variables using centralized .env path
+load_dotenv(dotenv_path=get_env_path())
 
 if not os.getenv("ENCRYPTION_KEY"):
     key = generate_key().decode()
@@ -23,8 +23,21 @@ if not os.getenv("ENCRYPTION_KEY"):
 # Reload environment variables
 load_dotenv()
 
-# Get the encryption key
 encryption_key = os.getenv("ENCRYPTION_KEY")
+
+# Create an encryption key if not yet created
+if not encryption_key:
+    encryption_key = generate_key().decode()
+    try:
+        with open("../.env", "a") as f:
+            f.write(f"ENCRYPTION_KEY={encryption_key}\n")
+
+        print("ENCRYPTION_KEY generated and saved.")
+
+    except Exception as e:
+        print(f"Failed to write ENCRYPTION_KEY to .env: {e}")
+
+# Create a cipher from the encryption key
 cipher = Fernet(encryption_key)
 
 
