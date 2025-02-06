@@ -11,8 +11,8 @@ from modules.password_manager import (add_password, generate_key,
 
 session = SessionLocal()
 
-# Load environment variables using centralized .env path
-load_dotenv(dotenv_path=get_env_path())
+# Load environment variables
+load_dotenv()
 
 if not os.getenv("ENCRYPTION_KEY"):
     key = generate_key().decode()
