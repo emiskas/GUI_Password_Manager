@@ -1,5 +1,7 @@
-import os.path
+import base64
+import os
 
+import psycopg2
 from sqlalchemy import Column, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -16,23 +18,33 @@ class Password(Base):
     encrypted_password = Column(String(256), nullable=False)
 
     def set_encrypted_password(self, plain_password, cipher):
-        """Encrypt and store the password."""
-        self.encrypted_password = cipher.encrypt(plain_password.encode("utf-8"))
+        """Encrypt and store the password (properly formatted for DB)."""
+        encrypted_bytes = cipher.encrypt(plain_password.encode("utf-8"))
+        self.encrypted_password = base64.urlsafe_b64encode(encrypted_bytes).decode(
+            "utf-8"
+        )
 
     def get_decrypted_password(self, cipher):
         """Decrypt and return the password."""
-        return cipher.decrypt(self.encrypted_password).decode("utf-8")
+        encrypted_bytes = base64.urlsafe_b64decode(self.encrypted_password)
+        decrypted_password = cipher.decrypt(encrypted_bytes).decode("utf-8")
+        print(f"🔹 Decrypted Password: {decrypted_password}")
+        return decrypted_password
 
 
 # Dynamically construct the path to the database file in the "gui" folder
-BASE_DIR = os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__))
-)  # Get the base directory
-DB_DIR = os.path.join(BASE_DIR, "gui")  # Path to the "gui" folder
-DATABASE_URL = f"sqlite:///{os.path.join(DB_DIR, 'passwords.sqlite')}"  # Full path to the database file
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_NAME = os.getenv("DB_NAME")
+DB_ADDRESS = os.getenv("DB_ADDRESS")
+DB_PORT = os.getenv("DB_PORT")
+
+DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_ADDRESS}:{DB_PORT}/{DB_NAME}"
 
 engine = create_engine(DATABASE_URL, echo=True)
-SessionLocal = sessionmaker(bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def init_db():
