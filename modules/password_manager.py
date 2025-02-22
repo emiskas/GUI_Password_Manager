@@ -145,7 +145,7 @@ def export_passwords(encryption_key, passwords: list = None):
                     content = (
                         f"Service: {password.service_name}, "
                         f"Username: {password.username}, "
-                        f"Password: {password.encrypted_password.decode()}\n"
+                        f"Password: {password.encrypted_password}\n"
                     )
                     f.write(content)
                 except Exception as write_error:
