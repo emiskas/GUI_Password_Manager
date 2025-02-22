@@ -1,4 +1,3 @@
-import base64
 import os
 
 import psycopg2
@@ -20,15 +19,12 @@ class Password(Base):
     def set_encrypted_password(self, plain_password, cipher):
         """Encrypt and store the password (properly formatted for DB)."""
         encrypted_bytes = cipher.encrypt(plain_password.encode("utf-8"))
-        self.encrypted_password = base64.urlsafe_b64encode(encrypted_bytes).decode(
-            "utf-8"
-        )
+        self.encrypted_password = encrypted_bytes.decode("utf-8")
 
     def get_decrypted_password(self, cipher):
         """Decrypt and return the password."""
-        encrypted_bytes = base64.urlsafe_b64decode(self.encrypted_password)
+        encrypted_bytes = self.encrypted_password.encode("utf-8")
         decrypted_password = cipher.decrypt(encrypted_bytes).decode("utf-8")
-        print(f"🔹 Decrypted Password: {decrypted_password}")
         return decrypted_password
 
 

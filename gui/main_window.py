@@ -32,14 +32,13 @@ encryption_key = os.getenv("ENCRYPTION_KEY")
 # Create an encryption key if not yet created
 if not encryption_key:
     encryption_key = generate_key().decode()
-    env_path = get_env_path()
 
-    with open(env_path, "a") as f:
+    with open(dotenv_path, "a") as f:
         f.write(f"ENCRYPTION_KEY={encryption_key}\n")
 
     print("ENCRYPTION_KEY generated and saved.")
 
-    load_dotenv(env_path)
+    load_dotenv(dotenv_path)
     encryption_key = os.getenv("ENCRYPTION_KEY")
 
 # Create a cipher from the encryption key
