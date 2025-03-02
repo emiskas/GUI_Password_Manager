@@ -1,4 +1,4 @@
-from supabase_client import supabase
+from modules.supabase_client import supabase
 
 
 def sign_up(email: str, password: str):

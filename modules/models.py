@@ -1,4 +1,4 @@
-from supabase_client import supabase
+from modules.supabase_client import supabase
 
 
 class Password:
