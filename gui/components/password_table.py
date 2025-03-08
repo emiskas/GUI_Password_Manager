@@ -52,7 +52,7 @@ class PasswordTable(QTableWidget):
         try:
             response = (
                 supabase.table("passwords")
-                .select("encrypted_password")
+                .select("encrypted_password, user_id")
                 .eq("service_name", service)
                 .eq("username", username)
                 .execute()
@@ -65,7 +65,11 @@ class PasswordTable(QTableWidget):
                 return
 
             encrypted_password = response.data[0]["encrypted_password"]
-            dialog = UpdatePasswordDialog(service, username, encrypted_password)
+            user_id = response.data[0]["user_id"]
+
+            dialog = UpdatePasswordDialog(
+                user_id, service, username, encrypted_password, row, self
+            )
 
             if dialog.exec_() == QDialog.Accepted:
                 self.setItem(row, 0, QTableWidgetItem(dialog.updated_service))
