@@ -1,8 +1,8 @@
 from PyQt5.QtWidgets import (QDialog, QLabel, QLineEdit, QMessageBox,
                              QPushButton, QVBoxLayout)
 
-from modules.auth import log_in
 from gui.dialogs.signup import SignUpDialog
+from modules.auth import log_in
 
 
 class LoginDialog(QDialog):
@@ -56,5 +56,4 @@ class LoginDialog(QDialog):
     def open_signup_dialog(self):
         """Open the SignUpDialog when the user clicks Sign Up."""
         signup_dialog = SignUpDialog()
-        if signup_dialog.exec_() == QDialog.Accepted:
-            QMessageBox.information(self, "Success", "Account created! Please log in.")
+        signup_dialog.exec_()

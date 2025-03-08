@@ -4,8 +4,6 @@ from pathlib import Path
 
 from modules.supabase_client import supabase
 
-from .models import Password
-
 # TODO: Use the same convention when returning or printing function outputs
 
 
@@ -19,15 +17,36 @@ def get_env_path():
     return Path(__file__).parent.parent / ".env"
 
 
+def get_user_id():
+    """Retrieve the user ID of the currently logged-in user."""
+    try:
+        user = supabase.auth.get_user()
+        if user and hasattr(user, "id"):  # Ensure user object has an ID
+            print("Retrieved User ID:", user.id)  # Debugging
+            return user.id
+        else:
+            print("Error: User ID not found.")
+            return None
+    except Exception as e:
+        print("Error retrieving user:", e)
+        return None
+
+
 def add_password(service_name, username, plain_password):
     """Add a new password entry to Supabase."""
+    user_id = get_user_id()
+
+    if not user_id:
+        return "Error: No authenticated user found."
+
     response = (
         supabase.table("passwords")
         .insert(
             {
+                "user_id": user_id,
                 "service_name": service_name,
                 "username": username,
-                "password": plain_password,
+                "encrypted_password": plain_password,
             }
         )
         .execute()
@@ -60,12 +79,9 @@ def list_passwords():
     response = supabase.table("passwords").select("service_name, username").execute()
 
     if response.data:
-        return [
-            f"Service: {entry['service_name']}, Username: {entry['username']}"
-            for entry in response.data
-        ]
+        return response.data
     else:
-        return "No passwords stored yet."
+        return []
 
 
 def generate_password(length=16):
