@@ -13,9 +13,8 @@ from PyQt5.QtWidgets import (QApplication, QDialog, QFileDialog, QLabel,
 from gui.dialogs.login import LoginDialog
 from gui.dialogs.password import AddPasswordDialog
 from modules.auth import get_current_user, log_out
-from modules.utils import (export_passwords, import_passwords,
-                           list_passwords)
 from modules.supabase_client import supabase
+from modules.utils import export_passwords, import_passwords, list_passwords
 
 
 class QRCodeDialog(QDialog):
@@ -64,8 +63,9 @@ class QRCodeDialog(QDialog):
 class MainWindow(QMainWindow):
     """Main application window for the password manager."""
 
-    def __init__(self):
+    def __init__(self, user_id):
         super().__init__()
+        self.user_id = user_id
         self.setWindowTitle("Password Manager")
         self.setGeometry(100, 100, 400, 200)
 
@@ -127,7 +127,7 @@ class MainWindow(QMainWindow):
 
     def open_add_password_dialog(self):
         """Open the dialog for adding a new password."""
-        dialog = AddPasswordDialog()
+        dialog = AddPasswordDialog(user_id=self.user_id)
         dialog.exec_()
 
     def display_passwords(self):
@@ -135,8 +135,10 @@ class MainWindow(QMainWindow):
         try:
             password_list = list_passwords()
 
-            if isinstance(password_list, str):  # Handle "No passwords stored yet."
-                QMessageBox.information(self, "No Passwords", password_list)
+            if not password_list:  # Empty list check
+                QMessageBox.information(
+                    self, "No Passwords", "No passwords stored yet."
+                )
                 return
 
             dialog = QDialog(self)
@@ -146,7 +148,9 @@ class MainWindow(QMainWindow):
             layout = QVBoxLayout(dialog)
             layout.setContentsMargins(0, 0, 0, 0)
             layout.setSpacing(0)
-            table = PasswordTable(password_list)
+            table = PasswordTable(
+                password_list
+            )  # Ensure PasswordTable handles dictionaries
             layout.addWidget(table)
 
             dialog.setLayout(layout)
@@ -181,7 +185,7 @@ def main():
     if login_dialog.exec_() == QDialog.Accepted:
         user = get_current_user()
         if user:
-            main_window = MainWindow()
+            main_window = MainWindow(user.user.id)
             main_window.show()
             sys.exit(app.exec_())
         else:
