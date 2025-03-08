@@ -1,8 +1,8 @@
 from PyQt5.QtWidgets import (QApplication, QDialog, QLabel, QLineEdit,
                              QMessageBox, QPushButton, QVBoxLayout)
 
-from modules.utils import generate_password
-from modules.supabase_client import supabase  # Import Supabase client
+from modules.supabase_client import supabase
+from modules.utils import generate_password, get_user_id
 
 
 class BasePasswordDialog(QDialog):
@@ -35,6 +35,7 @@ class AddPasswordDialog(BasePasswordDialog):
         self.username_input = QLineEdit()
         self.password_label = QLabel("Password:")
         self.password_input = QLineEdit()
+        self.password_input.setEchoMode(QLineEdit.Password)
 
         # Buttons
         self.save_button = QPushButton("Save")
@@ -62,7 +63,6 @@ class AddPasswordDialog(BasePasswordDialog):
         self.exit_button.clicked.connect(self.close)
 
     def save_password(self):
-        """Save the entered password to Supabase."""
         service = self.service_input.text().strip()
         username = self.username_input.text().strip()
         password = self.password_input.text().strip()
@@ -72,14 +72,21 @@ class AddPasswordDialog(BasePasswordDialog):
             return
 
         try:
+            user_response = supabase.auth.get_user()
+            user = user_response.user
+
+            if not user:
+                QMessageBox.critical(self, "Error", "Authentication failed")
+                return
+
             response = (
                 supabase.table("passwords")
                 .insert(
                     {
-                        "user_id": self.user_id,
+                        "user_id": user.id,
                         "service_name": service,
                         "username": username,
-                        "encrypted_password": password,  # Supabase handles encryption
+                        "encrypted_password": password,
                     }
                 )
                 .execute()
@@ -205,14 +212,16 @@ class UpdatePasswordDialog(BasePasswordDialog):
             QMessageBox.critical(self, "Error", f"Failed to update password: {str(e)}")
 
     def delete_password(self):
-        """Delete the password from Supabase."""
-        reply = QMessageBox.question(
+        """Delete the password entry from Supabase."""
+        confirm = QMessageBox.question(
             self,
-            "Confirm Deletion",
-            f"Are you sure you want to delete the password for {self.original_service}?",
+            "Confirm Delete",
+            "Are you sure you want to delete this password?",
             QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
         )
-        if reply == QMessageBox.Yes:
+
+        if confirm == QMessageBox.Yes:
             try:
                 response = (
                     supabase.table("passwords")
@@ -223,12 +232,34 @@ class UpdatePasswordDialog(BasePasswordDialog):
                     .execute()
                 )
 
-                self.parent_table.removeRow(self.row)
                 QMessageBox.information(
                     self, "Deleted", "Password deleted successfully."
                 )
+
+                # Remove the row from the table
+                self.parent_table.removeRow(self.row)
+
                 self.accept()
+
             except Exception as e:
                 QMessageBox.critical(
                     self, "Error", f"Failed to delete password: {str(e)}"
                 )
+
+
+if __name__ == "__main__":
+    import sys
+
+    app = QApplication(sys.argv)
+
+    user_id = get_user_id()
+    if not user_id:
+        QMessageBox.critical(
+            None, "Error", "You must be logged in to manage passwords."
+        )
+        sys.exit()
+
+    dialog = AddPasswordDialog(user_id)
+    dialog.exec_()
+
+    sys.exit(app.exec_())
