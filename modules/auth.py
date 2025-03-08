@@ -8,7 +8,7 @@ def sign_up(email: str, password: str):
         if response.user:
             return {
                 "success": True,
-                "message": "Sign-up successful! Please check your email for verification.",
+                "message": "Sign-up successful! You can now log in.",
             }
         return {"success": False, "message": "Sign-up failed. Try again."}
     except Exception as e:
