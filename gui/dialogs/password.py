@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (QApplication, QDialog, QLabel, QLineEdit,
                              QMessageBox, QPushButton, QVBoxLayout)
 
 from modules.supabase_client import supabase
-from modules.utils import generate_password, get_user_id
+from modules.utils import add_password, generate_password, get_user_id
 
 
 class BasePasswordDialog(QDialog):
@@ -72,28 +72,21 @@ class AddPasswordDialog(BasePasswordDialog):
             return
 
         try:
-            user_response = supabase.auth.get_user()
-            user = user_response.user
-
-            if not user:
+            user_id = get_user_id()
+            if not user_id:
                 QMessageBox.critical(self, "Error", "Authentication failed")
                 return
 
-            response = (
-                supabase.table("passwords")
-                .insert(
-                    {
-                        "user_id": user.id,
-                        "service_name": service,
-                        "username": username,
-                        "encrypted_password": password,
-                    }
-                )
-                .execute()
-            )
+            result = add_password(service, username, password)
 
-            QMessageBox.information(self, "Success", f"Password for {service} added.")
-            self.close()
+            if "success" in result.lower():
+                QMessageBox.information(
+                    self, "Success", f"Password for {service} added."
+                )
+                self.close()
+            else:
+                QMessageBox.critical(self, "Error", f"Failed to add password: {result}")
+
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to add password: {str(e)}")
 
