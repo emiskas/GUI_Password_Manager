@@ -1,10 +1,30 @@
+import base64
 import datetime
 import os
 from pathlib import Path
 
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
 from modules.supabase_client import supabase
 
 # TODO: Use the same convention when returning or printing function outputs
+
+# Constants
+SALT_SIZE = 16
+KEY_SIZE = 32  # AES-256
+ITERATIONS = 100000
+
+
+def derive_key(user_password: str, salt: bytes) -> bytes:
+    """Derives a 256-bit AES encryption key from the user's login password."""
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=KEY_SIZE,
+        salt=salt,
+        iterations=ITERATIONS,
+    )
+    return kdf.derive(user_password.encode())
 
 
 def get_env_path():
