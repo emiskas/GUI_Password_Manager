@@ -116,7 +116,7 @@ class MainWindow(QMainWindow):
         """Show QR Code dialog with stored passwords."""
         response = (
             supabase.table("passwords")
-            .select("service_name, username, password")
+            .select("service_name, username, encrypted_password")
             .execute()
         )
         passwords = response.data if response.data else []
