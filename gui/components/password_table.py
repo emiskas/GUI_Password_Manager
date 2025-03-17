@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import (QDialog, QMessageBox, QPushButton, QTableWidget,
 
 from gui.dialogs.password import UpdatePasswordDialog
 from modules.supabase_client import supabase
+from modules.utils import decrypt_password
 
 
 class PasswordTable(QTableWidget):
@@ -45,7 +46,7 @@ class PasswordTable(QTableWidget):
         self.resizeColumnsToContents()
 
     def handle_view_click(self, row):
-        """Handle the View button click to fetch password from Supabase."""
+        """Handle the View button click to fetch and decrypt password from Supabase."""
         service = self.item(row, 0).text()
         username = self.item(row, 1).text()
 
@@ -55,6 +56,7 @@ class PasswordTable(QTableWidget):
                 .select("encrypted_password, user_id")
                 .eq("service_name", service)
                 .eq("username", username)
+                .single()
                 .execute()
             )
 
@@ -64,11 +66,29 @@ class PasswordTable(QTableWidget):
                 )
                 return
 
-            encrypted_password = response.data[0]["encrypted_password"]
-            user_id = response.data[0]["user_id"]
+            encrypted_password = response.data["encrypted_password"]
+            user_id = response.data["user_id"]
+
+            key_response = (
+                supabase.table("user_keys")
+                .select("encryption_salt")
+                .eq("user_id", user_id)
+                .single()
+                .execute()
+            )
+
+            if not key_response.data:
+                QMessageBox.critical(
+                    self, "Error", "Encryption key not found for user."
+                )
+                return
+
+            user_key = key_response.data["encryption_salt"]
+
+            decrypted_password = decrypt_password(encrypted_password, user_key)
 
             dialog = UpdatePasswordDialog(
-                user_id, service, username, encrypted_password, row, self
+                user_id, service, username, decrypted_password, row, self
             )
 
             if dialog.exec_() == QDialog.Accepted:
