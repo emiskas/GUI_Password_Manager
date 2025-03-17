@@ -95,7 +95,9 @@ def generate_password(length=16):
 def export_passwords():
     """Export passwords from Supabase to a local file."""
     response = (
-        supabase.table("passwords").select("service_name, username, password").execute()
+        supabase.table("passwords")
+        .select("service_name, username, encrypted_password")
+        .execute()
     )
 
     if not response.data:
@@ -106,12 +108,11 @@ def export_passwords():
 
     today = datetime.datetime.now().strftime("%Y-%m-%d")
     path = os.path.join(backup_dir, f"{today}.txt")
-
     try:
         with open(path, "w") as f:
             for entry in response.data:
                 f.write(
-                    f"Service: {entry['service_name']}, Username: {entry['username']}, Password: {entry['password']}\n"
+                    f"Service: {entry["service_name"]}, Username: {entry["username"]}, Password: {entry["encrypted_password"]}\n"
                 )
         return f"Passwords exported successfully to {path}"
     except Exception as e:
