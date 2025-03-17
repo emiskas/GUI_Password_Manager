@@ -3,6 +3,7 @@ import datetime
 import os
 from pathlib import Path
 
+from Crypto.Cipher import AES
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
@@ -25,6 +26,40 @@ def derive_key(user_password: str, salt: bytes) -> bytes:
         iterations=ITERATIONS,
     )
     return kdf.derive(user_password.encode())
+
+
+def encrypt_password(plain_password, user_key):
+    """Encrypt the password using AES-256."""
+    salt = os.urandom(SALT_SIZE)
+    key = derive_key(user_key, salt)
+
+    cipher = AES.new(key, AES.MODE_EAX)
+    ciphertext, tag = cipher.encrypt_and_digest(plain_password.encode())
+
+    # Store salt, nonce, tag, and ciphertext, then base64 encode it
+    encrypted_data = base64.b64encode(salt + cipher.nonce + tag + ciphertext).decode()
+
+    return encrypted_data
+
+
+def decrypt_password(encrypted_password, user_key):
+    """Decrypt the AES-encrypted password."""
+    try:
+        encrypted_data = base64.b64decode(encrypted_password)
+
+        salt = encrypted_data[:SALT_SIZE]
+        nonce = encrypted_data[SALT_SIZE : SALT_SIZE + 16]
+        tag = encrypted_data[SALT_SIZE + 16 : SALT_SIZE + 32]
+        ciphertext = encrypted_data[SALT_SIZE + 32 :]
+
+        key = derive_key(user_key, salt)
+
+        cipher = AES.new(key, AES.MODE_EAX, nonce=nonce)
+        decrypted_password = cipher.decrypt_and_verify(ciphertext, tag)
+
+        return decrypted_password.decode()
+    except Exception as e:
+        return f"Error decrypting password: {str(e)}"
 
 
 def get_env_path():
@@ -60,6 +95,21 @@ def add_password(service_name, username, plain_password):
     if not user_id:
         return "Error: No authenticated user found."
 
+    # Fetch user's encryption key
+    response = (
+        supabase.table("user_keys")
+        .select("encryption_salt")
+        .eq("user_id", user_id)
+        .single()
+        .execute()
+    )
+    if not response.data:
+        return "Error: Encryption key not found for this user."
+
+    user_key = response.data["encryption_salt"]
+
+    # Encrypt the password
+    encrypted_password = encrypt_password(plain_password, user_key)
     response = (
         supabase.table("passwords")
         .insert(
@@ -67,7 +117,7 @@ def add_password(service_name, username, plain_password):
                 "user_id": user_id,
                 "service_name": service_name,
                 "username": username,
-                "encrypted_password": plain_password,
+                "encrypted_password": encrypted_password,
             }
         )
         .execute()
@@ -76,15 +126,28 @@ def add_password(service_name, username, plain_password):
 
 
 def retrieve_password(service_name):
-    """Retrieve a password entry by service name from Supabase."""
+    """Retrieve and decrypt a password from Supabase."""
     user_id = get_user_id()
-
     if not user_id:
         return "Error: No authenticated user found."
 
+    # Fetch user's encryption key
+    key_response = (
+        supabase.table("user_keys")
+        .select("encryption_salt")
+        .eq("user_id", user_id)
+        .single()
+        .execute()
+    )
+    if not key_response.data:
+        return "Error: Encryption key not found."
+
+    user_key = key_response.data["encryption_salt"]
+
+    # Fetch the encrypted password
     response = (
         supabase.table("passwords")
-        .select("service_name, username, password")
+        .select("service_name, username, encrypted_password")
         .eq("user_id", user_id)
         .eq("service_name", service_name)
         .execute()
@@ -92,10 +155,13 @@ def retrieve_password(service_name):
 
     if response.data:
         entry = response.data[0]
+
+        decrypted_password = decrypt_password(entry["encrypted_password"], user_key)
+
         return (
             f"Service: {entry['service_name']}\n"
             f"Username: {entry['username']}\n"
-            f"Password: {entry['password']}"
+            f"Password: {decrypted_password}"
         )
     else:
         return f"No entry found for service: {service_name}"
