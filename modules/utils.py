@@ -57,9 +57,15 @@ def add_password(service_name, username, plain_password):
 
 def retrieve_password(service_name):
     """Retrieve a password entry by service name from Supabase."""
+    user_id = get_user_id()
+
+    if not user_id:
+        return "Error: No authenticated user found."
+
     response = (
         supabase.table("passwords")
         .select("service_name, username, password")
+        .eq("user_id", user_id)
         .eq("service_name", service_name)
         .execute()
     )
@@ -76,8 +82,18 @@ def retrieve_password(service_name):
 
 
 def list_passwords():
-    """List all stored passwords from Supabase."""
-    response = supabase.table("passwords").select("service_name, username").execute()
+    """List all stored passwords from Supabase for the logged-in user."""
+    user_id = get_user_id()
+
+    if not user_id:
+        return "Error: No authenticated user found."
+
+    response = (
+        supabase.table("passwords")
+        .select("service_name, username")
+        .eq("user_id", user_id)
+        .execute()
+    )
 
     if response.data:
         return response.data
