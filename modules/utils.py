@@ -20,15 +20,16 @@ def get_env_path():
 def get_user_id():
     """Retrieve the user ID of the currently logged-in user."""
     try:
-        user = supabase.auth.get_user()
-        if user and hasattr(user, "id"):  # Ensure user object has an ID
-            print("Retrieved User ID:", user.id)  # Debugging
-            return user.id
-        else:
-            print("Error: User ID not found.")
-            return None
+        user_response = supabase.auth.get_user()
+        if user_response and hasattr(user_response, "user"):
+            user = user_response.user
+            if user and hasattr(user, "id"):
+                return user.id
+
+        print("Error: User ID not found.")
+        return None
     except Exception as e:
-        print("Error retrieving user:", e)
+        print(f"Error retrieving user: {e}")
         return None
 
 
