@@ -114,6 +114,9 @@ class UpdatePasswordDialog(BasePasswordDialog):
         self.original_service = service
         self.original_username = username
 
+        self.updated_service = None
+        self.updated_username = None
+
         layout = QVBoxLayout()
 
         # Fields
@@ -205,9 +208,12 @@ class UpdatePasswordDialog(BasePasswordDialog):
                 .eq("username", self.original_username)
                 .execute()
             )
+            self.updated_service = new_service
+            self.updated_username = new_username
 
             QMessageBox.information(self, "Success", "Password updated successfully.")
             self.accept()
+
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to update password: {str(e)}")
 
