@@ -172,10 +172,21 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "Import Status", result)
 
     def handle_export(self):
-        """Handle the export process."""
-        result = export_passwords()
-        QMessageBox.information(self, "Export Status", result)
+        """Handle the export process with encryption option."""
+        reply = QMessageBox.question(
+            self,
+            "Encrypt Export?",
+            "Do you want to encrypt the exported passwords?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
 
+        if reply == QMessageBox.Yes:
+            result = export_passwords()
+        else:
+            result = export_passwords(decrypt=True)
+
+        QMessageBox.information(self, "Export Status", result)
 
 def main():
     """Application entry point."""
