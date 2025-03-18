@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (QApplication, QDialog, QLabel, QLineEdit,
                              QMessageBox, QPushButton, QVBoxLayout)
 
 from modules.supabase_client import supabase
-from modules.utils import add_password, generate_password, get_user_id
+from modules.utils import add_password, generate_password, get_user_id, encrypt_password
 
 
 class BasePasswordDialog(QDialog):
@@ -182,6 +182,20 @@ class UpdatePasswordDialog(BasePasswordDialog):
         new_username = self.username_input.text().strip()
         new_password = self.password_input.text().strip()
 
+        # Fetch user's encryption key
+        response = (
+            supabase.table("user_keys")
+            .select("encryption_salt")
+            .eq("user_id", self.user_id)
+            .single()
+            .execute()
+        )
+        if not response.data:
+            return "Error: Encryption key not found for this user."
+
+        user_key = response.data["encryption_salt"]
+        encrypted_password = encrypt_password(new_password, user_key)
+
         if not new_service or not new_username or not new_password:
             QMessageBox.warning(self, "Error", "All fields are required.")
             return
@@ -193,7 +207,7 @@ class UpdatePasswordDialog(BasePasswordDialog):
                     {
                         "service_name": new_service,
                         "username": new_username,
-                        "encrypted_password": new_password,
+                        "encrypted_password": encrypted_password,
                     }
                 )
                 .eq("user_id", self.user_id)
