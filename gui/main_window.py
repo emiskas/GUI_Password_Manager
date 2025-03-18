@@ -14,7 +14,8 @@ from gui.dialogs.login import LoginDialog
 from gui.dialogs.password import AddPasswordDialog
 from modules.auth import get_current_user, log_out
 from modules.supabase_client import supabase
-from modules.utils import export_passwords, import_passwords, list_passwords
+from modules.utils import (decrypt_password, export_passwords,
+                           import_passwords, get_user_id, list_passwords)
 
 
 class QRCodeDialog(QDialog):
@@ -113,12 +114,45 @@ class MainWindow(QMainWindow):
         main()  # Restart the app and show login dialog
 
     def show_qr_code(self):
-        """Show QR Code dialog with stored passwords."""
-        response = (
-            supabase.table("passwords")
-            .select("service_name, username, encrypted_password")
-            .execute()
+        """Show QR Code dialog with stored passwords with encryption option."""
+        reply = QMessageBox.question(
+            self,
+            "Encrypt Export?",
+            "Do you want to encrypt the exported passwords?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
         )
+
+        if reply == QMessageBox.Yes:
+            response = (
+                supabase.table("passwords")
+                .select("service_name, username, encrypted_password")
+                .execute()
+            )
+        else:
+            user_id = get_user_id()
+
+            # Fetch user's encryption key
+            key_response = (
+                supabase.table("user_keys")
+                .select("encryption_salt")
+                .eq("user_id", user_id)
+                .single()
+                .execute()
+            )
+
+            user_key = key_response.data["encryption_salt"]
+
+            response = (
+                supabase.table("passwords")
+                .select(f"service_name, username, encrypted_password")
+                .execute()
+            )
+
+            encrypted_password = response.data[0]["encrypted_password"]
+            decrypted_password = decrypt_password(encrypted_password, user_key)
+            response.data[0]["encrypted_password"] = decrypted_password
+
         passwords = response.data if response.data else []
         qr_data = json.dumps(passwords)
 
@@ -178,7 +212,7 @@ class MainWindow(QMainWindow):
             "Encrypt Export?",
             "Do you want to encrypt the exported passwords?",
             QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            QMessageBox.No,
         )
 
         if reply == QMessageBox.Yes:
@@ -187,6 +221,7 @@ class MainWindow(QMainWindow):
             result = export_passwords(decrypt=True)
 
         QMessageBox.information(self, "Export Status", result)
+
 
 def main():
     """Application entry point."""
