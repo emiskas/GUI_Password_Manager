@@ -195,7 +195,16 @@ def generate_password(length=16):
     return "".join(random.choice(characters) for i in range(0, length))
 
 
-def export_passwords():
+def is_base64(s):
+    """Checks if a string is valid Base64"""
+    try:
+        base64.b64decode(s, validate=True)
+        return True
+    except Exception:
+        return False
+
+
+def export_passwords(decrypt=None):
     """Export passwords from Supabase to a local file."""
     response = (
         supabase.table("passwords")
@@ -211,12 +220,42 @@ def export_passwords():
 
     today = datetime.datetime.now().strftime("%Y-%m-%d")
     path = os.path.join(backup_dir, f"{today}.txt")
+
+    if decrypt:
+        user_id = get_user_id()
+
+        # Fetch user's encryption key
+        key_response = (
+            supabase.table("user_keys")
+            .select("encryption_salt")
+            .eq("user_id", user_id)
+            .single()
+            .execute()
+        )
+        user_key = key_response.data["encryption_salt"]
+
+        try:
+            with open(path, "w") as f:
+                for entry in response.data:
+                    decrypted_password = decrypt_password(
+                        entry["encrypted_password"], user_key
+                    )
+
+                    f.write(
+                        f"Service: {entry["service_name"]}, Username: {entry["username"]}, Password: {decrypted_password}\n"
+                    )
+
+            return f"Passwords exported successfully to {path}"
+        except Exception as e:
+            return f"Error exporting passwords: {str(e)}"
+
     try:
         with open(path, "w") as f:
             for entry in response.data:
                 f.write(
                     f"Service: {entry["service_name"]}, Username: {entry["username"]}, Password: {entry["encrypted_password"]}\n"
                 )
+
         return f"Passwords exported successfully to {path}"
     except Exception as e:
         return f"Error exporting passwords: {str(e)}"
@@ -239,6 +278,20 @@ def import_passwords(path):
                 service = parts[0].split(": ")[1]
                 username = parts[1].split(": ")[1]
                 password = parts[2].split(": ")[1]
+
+                if is_base64(password):
+                    user_id = get_user_id()
+
+                    # Fetch user's encryption key
+                    key_response = (
+                        supabase.table("user_keys")
+                        .select("encryption_salt")
+                        .eq("user_id", user_id)
+                        .single()
+                        .execute()
+                    )
+                    user_key = key_response.data["encryption_salt"]
+                    password = decrypt_password(password, user_key)
 
                 # Insert into Supabase
                 add_password(service, username, password)
