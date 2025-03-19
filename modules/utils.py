@@ -206,9 +206,15 @@ def is_base64(s):
 
 def export_passwords(decrypt=None):
     """Export passwords from Supabase to a local file."""
+    user_id = get_user_id()
+
+    if not user_id:
+        return "Error: No authenticated user found."
+
     response = (
         supabase.table("passwords")
         .select("service_name, username, encrypted_password")
+        .eq("user_id", user_id)
         .execute()
     )
 
@@ -222,7 +228,6 @@ def export_passwords(decrypt=None):
     path = os.path.join(backup_dir, f"{today}.txt")
 
     if decrypt:
-        user_id = get_user_id()
 
         # Fetch user's encryption key
         key_response = (

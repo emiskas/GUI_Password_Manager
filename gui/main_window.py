@@ -115,6 +115,11 @@ class MainWindow(QMainWindow):
 
     def show_qr_code(self):
         """Show QR Code dialog with stored passwords with encryption option."""
+        user_id = get_user_id()
+
+        if not user_id:
+            return "Error: No authenticated user found."
+
         reply = QMessageBox.question(
             self,
             "Encrypt Export?",
@@ -127,11 +132,10 @@ class MainWindow(QMainWindow):
             response = (
                 supabase.table("passwords")
                 .select("service_name, username, encrypted_password")
+                .eq("user_id", user_id)
                 .execute()
             )
         else:
-            user_id = get_user_id()
-
             # Fetch user's encryption key
             key_response = (
                 supabase.table("user_keys")
@@ -146,6 +150,7 @@ class MainWindow(QMainWindow):
             response = (
                 supabase.table("passwords")
                 .select(f"service_name, username, encrypted_password")
+                .eq("user_id", user_id)
                 .execute()
             )
 
