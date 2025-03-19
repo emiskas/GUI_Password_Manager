@@ -5,7 +5,7 @@ from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 
 from modules.models import Password, SessionLocal
-from modules.password_manager import (
+from modules.utils import (
     add_password,
     export_passwords,
     generate_password,

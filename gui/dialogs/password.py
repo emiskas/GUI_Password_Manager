@@ -1,44 +1,8 @@
-import os
-
-from cryptography.fernet import Fernet
-from dotenv import load_dotenv
 from PyQt5.QtWidgets import (QApplication, QDialog, QLabel, QLineEdit,
                              QMessageBox, QPushButton, QVBoxLayout)
 
-from modules.models import Password, SessionLocal
-from modules.password_manager import (add_password, generate_key,
-                                      generate_password)
-
-session = SessionLocal()
-
-# Load environment variables
-load_dotenv()
-
-if not os.getenv("ENCRYPTION_KEY"):
-    key = generate_key().decode()
-
-    with open("../gui/.env", "a") as f:
-        f.write(f"ENCRYPTION_KEY={key}\n")
-
-# Reload environment variables
-load_dotenv()
-
-encryption_key = os.getenv("ENCRYPTION_KEY")
-
-# Create an encryption key if not yet created
-if not encryption_key:
-    encryption_key = generate_key().decode()
-    try:
-        with open("../.env", "a") as f:
-            f.write(f"ENCRYPTION_KEY={encryption_key}\n")
-
-        print("ENCRYPTION_KEY generated and saved.")
-
-    except Exception as e:
-        print(f"Failed to write ENCRYPTION_KEY to .env: {e}")
-
-# Create a cipher from the encryption key
-cipher = Fernet(encryption_key)
+from modules.supabase_client import supabase
+from modules.utils import add_password, generate_password, get_user_id, encrypt_password
 
 
 class BasePasswordDialog(QDialog):
@@ -53,29 +17,32 @@ class BasePasswordDialog(QDialog):
 
 
 class AddPasswordDialog(BasePasswordDialog):
-    """Dialog for adding a new password to the database."""
+    """Dialog for adding a new password to Supabase."""
 
-    def __init__(self):
+    def __init__(self, user_id):
         super().__init__()
         self.setWindowTitle("Add Password")
         self.setGeometry(200, 200, 400, 300)
 
+        self.user_id = user_id  # Store user_id for database queries
+
         layout = QVBoxLayout()
 
-        # Input fields for service name, username, and password
+        # Input fields
         self.service_label = QLabel("Service Name:")
         self.service_input = QLineEdit()
         self.username_label = QLabel("Username:")
         self.username_input = QLineEdit()
         self.password_label = QLabel("Password:")
         self.password_input = QLineEdit()
+        self.password_input.setEchoMode(QLineEdit.Password)
 
         # Buttons
         self.save_button = QPushButton("Save")
         self.generate_button = QPushButton("Generate Password")
         self.exit_button = QPushButton("Exit")
 
-        # Add widgets to the layout
+        # Add widgets
         layout.addWidget(self.service_label)
         layout.addWidget(self.service_input)
         layout.addWidget(self.username_label)
@@ -88,7 +55,7 @@ class AddPasswordDialog(BasePasswordDialog):
 
         self.setLayout(layout)
 
-        # Connect buttons to their respective functions
+        # Button connections
         self.save_button.clicked.connect(self.save_password)
         self.generate_button.clicked.connect(
             lambda: self.add_generated_password(self.password_input)
@@ -96,20 +63,30 @@ class AddPasswordDialog(BasePasswordDialog):
         self.exit_button.clicked.connect(self.close)
 
     def save_password(self):
-        """Save the entered password to the database."""
         service = self.service_input.text().strip()
         username = self.username_input.text().strip()
         password = self.password_input.text().strip()
 
-        # Ensure all fields are filled
         if not service or not username or not password:
             QMessageBox.warning(self, "Error", "All fields are required.")
             return
 
         try:
-            add_password(service, username, password, cipher)
-            QMessageBox.information(self, "Success", f"Password for {service} added.")
-            self.close()
+            user_id = get_user_id()
+            if not user_id:
+                QMessageBox.critical(self, "Error", "Authentication failed")
+                return
+
+            result = add_password(service, username, password)
+
+            if "success" in result.lower():
+                QMessageBox.information(
+                    self, "Success", f"Password for {service} added."
+                )
+                self.close()
+            else:
+                QMessageBox.critical(self, "Error", f"Failed to add password: {result}")
+
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to add password: {str(e)}")
 
@@ -117,46 +94,47 @@ class AddPasswordDialog(BasePasswordDialog):
 class UpdatePasswordDialog(BasePasswordDialog):
     """Dialog for viewing, updating, and deleting a password."""
 
-    def __init__(self, service, username, password, cipher, row, parent_table):
+    def __init__(
+        self, user_id, service, username, encrypted_password, row, parent_table
+    ):
         super().__init__()
         self.setWindowTitle("Update Password")
         self.setGeometry(300, 300, 400, 300)
 
-        self.cipher = cipher
+        self.user_id = user_id
         self.row = row
         self.parent_table = parent_table
-        self.updated_service = service
-        self.updated_username = username
+        self.original_service = service
+        self.original_username = username
+
+        self.updated_service = None
+        self.updated_username = None
 
         layout = QVBoxLayout()
 
-        # Current service and username
+        # Fields
         self.service_label = QLabel("Service Name:")
-        self.service_input = QLineEdit()
-        self.service_input.setText(service)
+        self.service_input = QLineEdit(service)
 
         self.username_label = QLabel("Username:")
-        self.username_input = QLineEdit()
-        self.username_input.setText(username)
+        self.username_input = QLineEdit(username)
 
         self.password_label = QLabel("Password:")
-        self.password_input = QLineEdit()
-        self.password_input.setText(password)
-        self.password_input.setEchoMode(QLineEdit.Password)  # Conceal password
+        self.password_input = QLineEdit(encrypted_password)
+        self.password_input.setEchoMode(QLineEdit.Password)
 
-        # Show/Hide password toggle
+        # Buttons
         self.toggle_password_btn = QPushButton("Show Password")
         self.toggle_password_btn.setCheckable(True)
         self.toggle_password_btn.clicked.connect(self.toggle_password_visibility)
 
-        # Buttons
         self.generate_button = QPushButton("Generate Password")
         self.copy_button = QPushButton("Copy Password")
         self.update_button = QPushButton("Save")
         self.delete_button = QPushButton("Delete")
         self.exit_button = QPushButton("Exit")
 
-        # Add widgets to layout
+        # Add widgets
         layout.addWidget(self.service_label)
         layout.addWidget(self.service_input)
         layout.addWidget(self.username_label)
@@ -176,13 +154,15 @@ class UpdatePasswordDialog(BasePasswordDialog):
         self.generate_button.clicked.connect(
             lambda: self.add_generated_password(self.password_input)
         )
-        self.copy_button.clicked.connect(lambda: self.copy_to_clipboard(password))
+        self.copy_button.clicked.connect(
+            lambda: self.copy_to_clipboard(encrypted_password)
+        )
         self.update_button.clicked.connect(self.update_password)
         self.delete_button.clicked.connect(self.delete_password)
         self.exit_button.clicked.connect(self.reject)
 
     def toggle_password_visibility(self):
-        """Toggle the visibility of the password."""
+        """Toggle password visibility."""
         if self.toggle_password_btn.isChecked():
             self.password_input.setEchoMode(QLineEdit.Normal)
             self.toggle_password_btn.setText("Hide Password")
@@ -191,82 +171,108 @@ class UpdatePasswordDialog(BasePasswordDialog):
             self.toggle_password_btn.setText("Show Password")
 
     def copy_to_clipboard(self, password):
-        """Copy the given password to the clipboard."""
+        """Copy password to clipboard."""
         clipboard = QApplication.clipboard()
         clipboard.setText(password)
         QMessageBox.information(self, "Copied", "Password copied to clipboard!")
 
     def update_password(self):
-        """Update the password in the database."""
+        """Update the password in Supabase."""
         new_service = self.service_input.text().strip()
         new_username = self.username_input.text().strip()
         new_password = self.password_input.text().strip()
+
+        # Fetch user's encryption key
+        response = (
+            supabase.table("user_keys")
+            .select("encryption_salt")
+            .eq("user_id", self.user_id)
+            .single()
+            .execute()
+        )
+        if not response.data:
+            return "Error: Encryption key not found for this user."
+
+        user_key = response.data["encryption_salt"]
+        encrypted_password = encrypt_password(new_password, user_key)
 
         if not new_service or not new_username or not new_password:
             QMessageBox.warning(self, "Error", "All fields are required.")
             return
 
         try:
-            password_data = (
-                session.query(Password)
-                .filter_by(service_name=self.updated_service)
-                .first()
+            response = (
+                supabase.table("passwords")
+                .update(
+                    {
+                        "service_name": new_service,
+                        "username": new_username,
+                        "encrypted_password": encrypted_password,
+                    }
+                )
+                .eq("user_id", self.user_id)
+                .eq("service_name", self.original_service)
+                .eq("username", self.original_username)
+                .execute()
             )
-            if password_data:
-                # Update the database entry
-                password_data.service_name = new_service
-                password_data.username = new_username
-                password_data.set_encrypted_password(new_password, self.cipher)
-                session.commit()
+            self.updated_service = new_service
+            self.updated_username = new_username
 
-                # Update dialog attributes for the parent table
-                self.updated_service = new_service
-                self.updated_username = new_username
+            QMessageBox.information(self, "Success", "Password updated successfully.")
+            self.accept()
 
-                QMessageBox.information(
-                    self, "Success", "Password updated successfully."
-                )
-                self.accept()  # Close the dialog
-            else:
-                QMessageBox.warning(
-                    self, "Not Found", "Password not found in the database."
-                )
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to update password: {str(e)}")
 
     def delete_password(self):
-        """Delete the password from the database."""
-        reply = QMessageBox.question(
+        """Delete the password entry from Supabase."""
+        confirm = QMessageBox.question(
             self,
-            "Confirm Deletion",
-            f"Are you sure you want to delete the password for {self.updated_service}?",
+            "Confirm Delete",
+            "Are you sure you want to delete this password?",
             QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
         )
-        if reply == QMessageBox.Yes:
+
+        if confirm == QMessageBox.Yes:
             try:
-                password_data = (
-                    session.query(Password)
-                    .filter_by(service_name=self.updated_service)
-                    .first()
+                response = (
+                    supabase.table("passwords")
+                    .delete()
+                    .eq("user_id", self.user_id)
+                    .eq("service_name", self.original_service)
+                    .eq("username", self.original_username)
+                    .execute()
                 )
-                if password_data:
-                    session.delete(password_data)
-                    session.commit()
 
-                    # Remove the row from the parent table
-                    self.parent_table.removeRow(self.row)
+                QMessageBox.information(
+                    self, "Deleted", "Password deleted successfully."
+                )
 
-                    QMessageBox.information(
-                        self,
-                        "Deleted",
-                        f"Password for {self.updated_service} deleted successfully.",
-                    )
-                    self.accept()  # Close the dialog
-                else:
-                    QMessageBox.warning(
-                        self, "Not Found", "Password not found in the database."
-                    )
+                # Remove the row from the table
+                self.parent_table.removeRow(self.row)
+
+                self.accept()
+
             except Exception as e:
                 QMessageBox.critical(
                     self, "Error", f"Failed to delete password: {str(e)}"
                 )
+
+
+if __name__ == "__main__":
+    import sys
+
+    app = QApplication(sys.argv)
+
+    user_id = get_user_id()
+    if not user_id:
+        QMessageBox.critical(
+            None, "Error", "You must be logged in to manage passwords."
+        )
+        sys.exit()
+
+    dialog = AddPasswordDialog(user_id)
+    dialog.exec_()
+
+    sys.exit(app.exec_())

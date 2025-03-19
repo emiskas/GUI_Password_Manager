@@ -3,20 +3,18 @@ from PyQt5.QtWidgets import (QDialog, QMessageBox, QPushButton, QTableWidget,
                              QTableWidgetItem)
 
 from gui.dialogs.password import UpdatePasswordDialog
-from modules.models import Password, SessionLocal
-
-session = SessionLocal()
+from modules.supabase_client import supabase
+from modules.utils import decrypt_password
 
 
 class PasswordTable(QTableWidget):
     """Widget to display stored passwords with View options."""
 
-    def __init__(self, password_list, cipher):
+    def __init__(self, password_list):
         super().__init__(len(password_list), 3)  # 3 columns: Service, Username, Actions
         self.setHorizontalHeaderLabels(
             ["Service", "Username", "Actions"]
         )  # Set column headers
-        self.cipher = cipher  # Store the cipher for decryption
 
         # Set table properties
         self.setContentsMargins(0, 0, 0, 0)  # Ensure no margin around the table
@@ -25,10 +23,9 @@ class PasswordTable(QTableWidget):
         self.verticalHeader().setVisible(False)  # Hide row headers
 
         # Populate the table rows
-        for row, password_str in enumerate(password_list):
-            # Parse the string to extract service and username
-            service = self.extract_field(password_str, "Service")
-            username = self.extract_field(password_str, "Username")
+        for row, password_entry in enumerate(password_list):
+            service = password_entry.get("service_name", "Unknown")
+            username = password_entry.get("username", "Unknown")
 
             # Add service and username to the table
             service_item = QTableWidgetItem(service)
@@ -49,28 +46,52 @@ class PasswordTable(QTableWidget):
         self.resizeColumnsToContents()
 
     def handle_view_click(self, row):
-        """Handle the View button click to open the UpdatePasswordDialog."""
+        """Handle the View button click to fetch and decrypt password from Supabase."""
         service = self.item(row, 0).text()
         username = self.item(row, 1).text()
 
         try:
-            # Query the database for the clicked service
-            password_data = (
-                session.query(Password).filter_by(service_name=service).first()
+            response = (
+                supabase.table("passwords")
+                .select("encrypted_password, user_id")
+                .eq("service_name", service)
+                .eq("username", username)
+                .single()
+                .execute()
             )
-            if not password_data:
+
+            if not response.data:
                 QMessageBox.warning(
                     self, "Not Found", "No password found for this service."
                 )
                 return
 
-            # Decrypt the password and open the update dialog
-            decrypted_password = password_data.get_decrypted_password(self.cipher)
-            dialog = UpdatePasswordDialog(
-                service, username, decrypted_password, self.cipher, row, self
+            encrypted_password = response.data["encrypted_password"]
+            user_id = response.data["user_id"]
+
+            key_response = (
+                supabase.table("user_keys")
+                .select("encryption_salt")
+                .eq("user_id", user_id)
+                .single()
+                .execute()
             )
+
+            if not key_response.data:
+                QMessageBox.critical(
+                    self, "Error", "Encryption key not found for user."
+                )
+                return
+
+            user_key = key_response.data["encryption_salt"]
+
+            decrypted_password = decrypt_password(encrypted_password, user_key)
+
+            dialog = UpdatePasswordDialog(
+                user_id, service, username, decrypted_password, row, self
+            )
+
             if dialog.exec_() == QDialog.Accepted:
-                # Update the table with any changes made
                 self.setItem(row, 0, QTableWidgetItem(dialog.updated_service))
                 self.setItem(row, 1, QTableWidgetItem(dialog.updated_username))
 
@@ -78,15 +99,3 @@ class PasswordTable(QTableWidget):
             QMessageBox.critical(
                 self, "Error", f"Failed to retrieve password: {str(e)}"
             )
-
-    @staticmethod
-    def extract_field(password_str, field_name):
-        """Extract the value of a field (e.g., 'Service') from a string."""
-        field_prefix = f"{field_name}: "
-        start = password_str.find(field_prefix) + len(field_prefix)
-        end = (
-            password_str.find(",", start)
-            if "," in password_str[start:]
-            else len(password_str)
-        )
-        return password_str[start:end].strip()
