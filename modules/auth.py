@@ -92,3 +92,36 @@ def get_current_user():
 def is_logged_in():
     """Checks if a user is currently logged in."""
     return get_current_user() is not None
+
+
+def request_password_reset(email):
+    """Send an OTP for password reset via Supabase."""
+    try:
+        supabase.auth.reset_password_for_email(email)
+
+        return {"success": True, "message": "OTP sent to your email."}
+
+    except Exception as e:
+        return {"success": False, "message": f"Error: {str(e)}"}
+
+
+def verify_otp_and_reset_password(email, otp, new_password):
+    """Verify OTP and reset password in Supabase."""
+    try:
+        # Verify the OTP
+        response = supabase.auth.verify_otp(
+            {"email": email, "token": otp, "type": "recovery"}
+        )
+
+        if response:
+            # Update password after OTP is verified
+            update_response = supabase.auth.update_user({"password": new_password})
+
+            if update_response:
+                return {"success": True, "message": "Password reset successful."}
+            return {"success": False, "message": "Failed to update password."}
+
+        return {"success": False, "message": "Invalid OTP."}
+
+    except Exception as e:
+        return {"success": False, "message": str(e)}

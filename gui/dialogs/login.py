@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import (QDialog, QLabel, QLineEdit, QMessageBox,
                              QPushButton, QVBoxLayout)
 
+from gui.dialogs.password_reset import PasswordResetDialog
 from gui.dialogs.signup import SignUpDialog
 from modules.auth import log_in
 
@@ -28,12 +29,16 @@ class LoginDialog(QDialog):
         self.signup_button = QPushButton("Sign Up")
         self.signup_button.clicked.connect(self.open_signup_dialog)
 
+        self.forgot_password_button = QPushButton("Forgot Password?")
+        self.forgot_password_button.clicked.connect(self.open_reset_password_dialog)
+
         layout.addWidget(self.email_label)
         layout.addWidget(self.email_input)
         layout.addWidget(self.password_label)
         layout.addWidget(self.password_input)
         layout.addWidget(self.login_button)
         layout.addWidget(self.signup_button)
+        layout.addWidget(self.forgot_password_button)
 
         self.setLayout(layout)
 
@@ -57,3 +62,8 @@ class LoginDialog(QDialog):
         """Open the SignUpDialog when the user clicks Sign Up."""
         signup_dialog = SignUpDialog()
         signup_dialog.exec_()
+
+    def open_reset_password_dialog(self):
+        """Open the Password Reset dialog."""
+        reset_dialog = PasswordResetDialog()
+        reset_dialog.exec_()
