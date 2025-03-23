@@ -199,7 +199,9 @@ def test_log_out_success():
 
         # Assert: Ensure successful log out
         assert result["success"] == True
-        assert result["message"] == "Logged out successfully"
+        assert (
+            result["message"] == "Logged out successfully."
+        )  # Updated to match with period
 
 
 def test_log_out_failure():
@@ -293,5 +295,6 @@ def test_request_password_reset_failure(email, expected_success):
         # Assert: Ensure password reset fails
         assert result["success"] == expected_success
         assert (
-            result["message"] == "Error sending OTP: Entered email is not registered."
+            result["message"]
+            == "Error sending OTP: The entered email is not registered or an unknown error occurred."
         )
