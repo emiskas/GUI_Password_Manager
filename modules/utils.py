@@ -9,8 +9,6 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 from modules.supabase_client import supabase
 
-# TODO: Use the same convention when returning or printing function outputs
-
 # Constants
 SALT_SIZE = 16
 KEY_SIZE = 32  # AES-256
@@ -39,7 +37,7 @@ def encrypt_password(plain_password, user_key):
     # Store salt, nonce, tag, and ciphertext, then base64 encode it
     encrypted_data = base64.b64encode(salt + cipher.nonce + tag + ciphertext).decode()
 
-    return encrypted_data
+    return {"success": True, "encrypted_password": encrypted_data}
 
 
 def decrypt_password(encrypted_password, user_key):
@@ -57,9 +55,9 @@ def decrypt_password(encrypted_password, user_key):
         cipher = AES.new(key, AES.MODE_EAX, nonce=nonce)
         decrypted_password = cipher.decrypt_and_verify(ciphertext, tag)
 
-        return decrypted_password.decode()
+        return {"success": True, "decrypted_password": decrypted_password.decode()}
 
-    except ValueError as e:
+    except ValueError:
         return {"success": False, "message": "Decryption failed: Invalid key or data."}
 
     except Exception as e:
@@ -78,7 +76,7 @@ def get_user_id():
         if not user or not getattr(user, "id", None):
             return {"success": False, "message": "User ID not found."}
 
-        return user.id
+        return {"success": True, "user_id": user.id}
 
     except Exception as e:
         return {"success": False, "message": f"Error retrieving user: {str(e)}"}
@@ -88,10 +86,10 @@ def add_password(service_name, username, plain_password):
     """Add a new password entry to Supabase."""
     user_id_response = get_user_id()
 
-    if isinstance(user_id_response, dict):  # Check if it returned an error
-        return user_id_response["message"]
+    if not user_id_response["success"]:
+        return user_id_response  # Return error if user ID retrieval failed
 
-    user_id = user_id_response  # Extract actual user ID
+    user_id = user_id_response["user_id"]
 
     # Fetch user's encryption key
     response = (
@@ -103,7 +101,10 @@ def add_password(service_name, username, plain_password):
     )
 
     if not response.get("data"):
-        return "Error: Encryption key not found for this user."
+        return {
+            "success": False,
+            "message": "Error: Encryption key not found for this user.",
+        }
 
     user_key = response["data"].get("encryption_salt")
 
@@ -118,29 +119,29 @@ def add_password(service_name, username, plain_password):
                     "user_id": user_id,
                     "service_name": service_name,
                     "username": username,
-                    "encrypted_password": encrypted_password,
+                    "encrypted_password": encrypted_password["encrypted_password"],
                 }
             )
             .execute()
         )
 
         if "data" in insert_response:
-            return "Password added successfully"
+            return {"success": True, "message": "Password added successfully"}
         else:
-            return "Failed to add password"
+            return {"success": False, "message": "Failed to add password"}
 
     except Exception as e:
-        return f"Database error: {str(e)}"
+        return {"success": False, "message": f"Database error: {str(e)}"}
 
 
 def retrieve_password(service_name):
     """Retrieve and decrypt a password from Supabase."""
     user_id_response = get_user_id()
 
-    if isinstance(user_id_response, dict):  # Handle errors first
-        return user_id_response["message"]
+    if not user_id_response["success"]:
+        return user_id_response  # Return error if user ID retrieval failed
 
-    user_id = user_id_response
+    user_id = user_id_response["user_id"]
 
     key_response = (
         supabase.table("user_keys")
@@ -151,7 +152,7 @@ def retrieve_password(service_name):
     )
 
     if not key_response.get("data"):
-        return "Error: Encryption key not found."
+        return {"success": False, "message": "Error: Encryption key not found."}
 
     user_key = key_response["data"].get("encryption_salt")
 
@@ -164,29 +165,34 @@ def retrieve_password(service_name):
     )
 
     if not response.get("data"):
-        return f"No entry found for service: {service_name}"
+        return {
+            "success": False,
+            "message": f"No entry found for service: {service_name}",
+        }
 
     entry = response["data"][0]
 
     decrypted_password = decrypt_password(entry["encrypted_password"], user_key)
 
-    if "Error" in decrypted_password:
-        return decrypted_password  # Directly return the decryption error
+    if not decrypted_password["success"]:
+        return decrypted_password  # Return the decryption error
 
     return {
         "success": True,
         "service": entry["service_name"],
         "username": entry["username"],
-        "password": decrypted_password,
+        "password": decrypted_password["decrypted_password"],
     }
 
 
 def list_passwords():
     """List all stored passwords from Supabase for the logged-in user."""
-    user_id = get_user_id()
+    user_id_response = get_user_id()
 
-    if not user_id:
-        return "Error: No authenticated user found."
+    if not user_id_response["success"]:
+        return user_id_response  # Return error if user ID retrieval failed
+
+    user_id = user_id_response["user_id"]
 
     response = (
         supabase.table("passwords")
@@ -196,12 +202,13 @@ def list_passwords():
     )
 
     if response.data:
-        return response.data
+        return {"success": True, "data": response.data}
     else:
-        return []
+        return {"success": False, "message": "No passwords found."}
 
 
 def generate_password(length=16):
+    """Generate a random password."""
     import random
     import string
 
@@ -210,7 +217,7 @@ def generate_password(length=16):
 
 
 def is_base64(s):
-    """Checks if a string is valid Base64"""
+    """Checks if a string is valid Base64."""
     try:
         base64.b64decode(s, validate=True)
         return True
@@ -220,10 +227,12 @@ def is_base64(s):
 
 def export_passwords(decrypt=None):
     """Export passwords from Supabase to a local file."""
-    user_id = get_user_id()
+    user_id_response = get_user_id()
 
-    if not user_id:
-        return "Error: No authenticated user found."
+    if not user_id_response["success"]:
+        return user_id_response  # Return error if user ID retrieval failed
+
+    user_id = user_id_response["user_id"]
 
     response = (
         supabase.table("passwords")
@@ -233,7 +242,7 @@ def export_passwords(decrypt=None):
     )
 
     if not response.data:
-        return "No passwords found in Supabase."
+        return {"success": False, "message": "No passwords found in Supabase."}
 
     backup_dir = os.path.join(os.getcwd(), "backup")
     os.makedirs(backup_dir, exist_ok=True)
@@ -242,7 +251,6 @@ def export_passwords(decrypt=None):
     path = os.path.join(backup_dir, f"{today}.txt")
 
     if decrypt:
-
         # Fetch user's encryption key
         key_response = (
             supabase.table("user_keys")
@@ -260,30 +268,42 @@ def export_passwords(decrypt=None):
                         entry["encrypted_password"], user_key
                     )
 
-                    f.write(
-                        f"Service: {entry["service_name"]}, Username: {entry["username"]}, Password: {decrypted_password}\n"
-                    )
+                    if not decrypted_password["success"]:
+                        f.write(
+                            f"Error decrypting password for {entry['service_name']}: {decrypted_password['message']}\n"
+                        )
+                    else:
+                        f.write(
+                            f"Service: {entry['service_name']}, Username: {entry['username']}, Password: {decrypted_password['decrypted_password']}\n"
+                        )
 
-            return f"Passwords exported successfully to {path}"
+            return {
+                "success": True,
+                "message": f"Passwords exported successfully to {path}",
+            }
+
         except Exception as e:
-            return f"Error exporting passwords: {str(e)}"
+            return {"success": False, "message": f"Error exporting passwords: {str(e)}"}
 
     try:
         with open(path, "w") as f:
             for entry in response.data:
                 f.write(
-                    f"Service: {entry["service_name"]}, Username: {entry["username"]}, Password: {entry["encrypted_password"]}\n"
+                    f"Service: {entry['service_name']}, Username: {entry['username']}, Password: {entry['encrypted_password']}\n"
                 )
 
-        return f"Passwords exported successfully to {path}"
+        return {
+            "success": True,
+            "message": f"Passwords exported successfully to {path}",
+        }
     except Exception as e:
-        return f"Error exporting passwords: {str(e)}"
+        return {"success": False, "message": f"Error exporting passwords: {str(e)}"}
 
 
 def import_passwords(path):
     """Import passwords from a local file to Supabase."""
     if not os.path.exists(path):
-        return "Error: File not found."
+        return {"success": False, "message": "Error: File not found."}
 
     try:
         with open(path, "r") as f:
@@ -291,15 +311,24 @@ def import_passwords(path):
             for line in lines:
                 parts = line.strip().split(", ")
                 if len(parts) != 3:
-                    print(f"Skipping invalid line: {line.strip()}")
-                    continue
+                    return {
+                        "success": False,
+                        "message": f"Skipping invalid line: {line.strip()}",
+                    }
 
                 service = parts[0].split(": ")[1]
                 username = parts[1].split(": ")[1]
                 password = parts[2].split(": ")[1]
 
                 if is_base64(password):
-                    user_id = get_user_id()
+                    user_id_response = get_user_id()
+
+                    if not user_id_response["success"]:
+                        return (
+                            user_id_response  # Return error if user ID retrieval failed
+                        )
+
+                    user_id = user_id_response["user_id"]
 
                     # Fetch user's encryption key
                     key_response = (
@@ -310,10 +339,17 @@ def import_passwords(path):
                         .execute()
                     )
                     user_key = key_response.data["encryption_salt"]
-                    password = decrypt_password(password, user_key)
+                    password = decrypt_password(password, user_key)[
+                        "decrypted_password"
+                    ]
 
                 # Insert into Supabase
                 add_password(service, username, password)
-        return f"Successfully imported accounts from: {path}"
+
+        return {
+            "success": True,
+            "message": f"Successfully imported accounts from: {path}",
+        }
+
     except Exception as e:
-        return f"Error importing passwords: {str(e)}"
+        return {"success": False, "message": f"Error importing passwords: {str(e)}"}
