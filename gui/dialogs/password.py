@@ -2,7 +2,8 @@ from PyQt5.QtWidgets import (QApplication, QDialog, QLabel, QLineEdit,
                              QMessageBox, QPushButton, QVBoxLayout)
 
 from modules.supabase_client import supabase
-from modules.utils import add_password, generate_password, get_user_id, encrypt_password
+from modules.utils import (add_password, encrypt_password, generate_password,
+                           get_user_id)
 
 
 class BasePasswordDialog(QDialog):
@@ -11,9 +12,16 @@ class BasePasswordDialog(QDialog):
     @staticmethod
     def add_generated_password(password_input):
         """Generate a random password and set it in the input field."""
-        new_password = generate_password()  # Generate a new password
-        password_input.setText(new_password)  # Set the new password in the field
-        QMessageBox.information(None, "Generated", "New password has been generated!")
+        try:
+            new_password = generate_password()  # Generate a new password
+            password_input.setText(new_password)  # Set the new password in the field
+            QMessageBox.information(
+                None, "Generated", "New password has been generated!"
+            )
+        except Exception as e:
+            QMessageBox.warning(
+                None, "Generation Error", f"Failed to generate password: {str(e)}"
+            )
 
 
 class AddPasswordDialog(BasePasswordDialog):
@@ -77,7 +85,22 @@ class AddPasswordDialog(BasePasswordDialog):
                 QMessageBox.critical(self, "Error", "Authentication failed")
                 return
 
-            result = add_password(service, username, password)
+            try:
+                result = add_password(service, username, password)
+            except supabase.PostgrestError as db_error:
+                QMessageBox.critical(
+                    self,
+                    "Database Error",
+                    f"Database connection failed: {str(db_error)}",
+                )
+                return
+            except TimeoutError:
+                QMessageBox.critical(
+                    self,
+                    "Connection Error",
+                    "Database connection timed out. Please try again.",
+                )
+                return
 
             if "success" in result.lower():
                 QMessageBox.information(
@@ -163,18 +186,28 @@ class UpdatePasswordDialog(BasePasswordDialog):
 
     def toggle_password_visibility(self):
         """Toggle password visibility."""
-        if self.toggle_password_btn.isChecked():
-            self.password_input.setEchoMode(QLineEdit.Normal)
-            self.toggle_password_btn.setText("Hide Password")
-        else:
-            self.password_input.setEchoMode(QLineEdit.Password)
-            self.toggle_password_btn.setText("Show Password")
+        try:
+            if self.toggle_password_btn.isChecked():
+                self.password_input.setEchoMode(QLineEdit.Normal)
+                self.toggle_password_btn.setText("Hide Password")
+            else:
+                self.password_input.setEchoMode(QLineEdit.Password)
+                self.toggle_password_btn.setText("Show Password")
+        except Exception as e:
+            QMessageBox.warning(
+                self, "UI Error", f"Failed to toggle password visibility: {str(e)}"
+            )
 
     def copy_to_clipboard(self, password):
         """Copy password to clipboard."""
-        clipboard = QApplication.clipboard()
-        clipboard.setText(password)
-        QMessageBox.information(self, "Copied", "Password copied to clipboard!")
+        try:
+            clipboard = QApplication.clipboard()
+            clipboard.setText(password)
+            QMessageBox.information(self, "Copied", "Password copied to clipboard!")
+        except Exception as e:
+            QMessageBox.warning(
+                self, "Clipboard Error", f"Failed to copy to clipboard: {str(e)}"
+            )
 
     def update_password(self):
         """Update the password in Supabase."""
@@ -182,44 +215,113 @@ class UpdatePasswordDialog(BasePasswordDialog):
         new_username = self.username_input.text().strip()
         new_password = self.password_input.text().strip()
 
-        # Fetch user's encryption key
-        response = (
-            supabase.table("user_keys")
-            .select("encryption_salt")
-            .eq("user_id", self.user_id)
-            .single()
-            .execute()
-        )
-        if not response.data:
-            return "Error: Encryption key not found for this user."
-
-        user_key = response.data["encryption_salt"]
-        encrypted_password = encrypt_password(new_password, user_key)
-
         if not new_service or not new_username or not new_password:
             QMessageBox.warning(self, "Error", "All fields are required.")
             return
 
         try:
-            response = (
-                supabase.table("passwords")
-                .update(
-                    {
-                        "service_name": new_service,
-                        "username": new_username,
-                        "encrypted_password": encrypted_password,
-                    }
+            # First try to get the encryption key with timeout handling
+            try:
+                response = (
+                    supabase.table("user_keys")
+                    .select("encryption_salt")
+                    .eq("user_id", self.user_id)
+                    .single()
+                    .execute()
                 )
-                .eq("user_id", self.user_id)
-                .eq("service_name", self.original_service)
-                .eq("username", self.original_username)
-                .execute()
-            )
-            self.updated_service = new_service
-            self.updated_username = new_username
+                if not response.data:
+                    QMessageBox.warning(
+                        self, "Error", "Encryption key not found for this user."
+                    )
+                    return
+            except TimeoutError:
+                QMessageBox.critical(
+                    self,
+                    "Connection Error",
+                    "Database connection timed out. Please try again.",
+                )
+                return
+            except supabase.PostgrestError as db_error:
+                QMessageBox.critical(
+                    self, "Database Error", f"Failed to query database: {str(db_error)}"
+                )
+                return
+            except Exception as key_error:
+                QMessageBox.critical(
+                    self,
+                    "Error",
+                    f"Failed to retrieve encryption key: {str(key_error)}",
+                )
+                return
 
-            QMessageBox.information(self, "Success", "Password updated successfully.")
-            self.accept()
+            user_key = response.data["encryption_salt"]
+
+            try:
+                encrypted_password = encrypt_password(new_password, user_key)
+                if (
+                    not encrypted_password or len(encrypted_password) < 10
+                ):  # Assuming encrypted passwords have minimum length
+                    QMessageBox.warning(
+                        self,
+                        "Encryption Error",
+                        "Password encryption failed. Please try again.",
+                    )
+                    return
+            except Exception as encrypt_error:
+                QMessageBox.critical(
+                    self,
+                    "Encryption Error",
+                    f"Failed to encrypt password: {str(encrypt_error)}",
+                )
+                return
+
+            try:
+                response = (
+                    supabase.table("passwords")
+                    .update(
+                        {
+                            "service_name": new_service,
+                            "username": new_username,
+                            "encrypted_password": encrypted_password,
+                        }
+                    )
+                    .eq("user_id", self.user_id)
+                    .eq("service_name", self.original_service)
+                    .eq("username", self.original_username)
+                    .execute()
+                )
+
+                if not response or not response.data:
+                    QMessageBox.warning(
+                        self,
+                        "Warning",
+                        "Update may not have been successful. Please verify.",
+                    )
+                    return
+
+                self.updated_service = new_service
+                self.updated_username = new_username
+
+                QMessageBox.information(
+                    self, "Success", "Password updated successfully."
+                )
+                self.accept()
+            except TimeoutError:
+                QMessageBox.critical(
+                    self,
+                    "Connection Error",
+                    "Database update timed out. Please try again.",
+                )
+            except supabase.PostgrestError as db_error:
+                QMessageBox.critical(
+                    self,
+                    "Database Error",
+                    f"Failed to update password: {str(db_error)}",
+                )
+            except Exception as update_error:
+                QMessageBox.critical(
+                    self, "Error", f"Failed to update password: {str(update_error)}"
+                )
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to update password: {str(e)}")
@@ -236,22 +338,54 @@ class UpdatePasswordDialog(BasePasswordDialog):
 
         if confirm == QMessageBox.Yes:
             try:
-                response = (
-                    supabase.table("passwords")
-                    .delete()
-                    .eq("user_id", self.user_id)
-                    .eq("service_name", self.original_service)
-                    .eq("username", self.original_username)
-                    .execute()
-                )
+                try:
+                    response = (
+                        supabase.table("passwords")
+                        .delete()
+                        .eq("user_id", self.user_id)
+                        .eq("service_name", self.original_service)
+                        .eq("username", self.original_username)
+                        .execute()
+                    )
+
+                    # Verify deletion was successful by checking response
+                    if not response or not response.data:
+                        QMessageBox.warning(
+                            self,
+                            "Warning",
+                            "Password may not have been deleted. Please verify.",
+                        )
+                        return
+                except TimeoutError:
+                    QMessageBox.critical(
+                        self,
+                        "Connection Error",
+                        "Database deletion timed out. Please try again.",
+                    )
+                    return
+                except supabase.PostgrestError as db_error:
+                    QMessageBox.critical(
+                        self,
+                        "Database Error",
+                        f"Failed to delete from database: {str(db_error)}",
+                    )
+                    return
+
+                try:
+                    # Remove the row from the table
+                    self.parent_table.removeRow(self.row)
+                except Exception as ui_error:
+                    QMessageBox.warning(
+                        self,
+                        "UI Error",
+                        f"Password was deleted but UI update failed: {str(ui_error)}",
+                    )
+                    self.accept()
+                    return
 
                 QMessageBox.information(
                     self, "Deleted", "Password deleted successfully."
                 )
-
-                # Remove the row from the table
-                self.parent_table.removeRow(self.row)
-
                 self.accept()
 
             except Exception as e:
@@ -263,16 +397,30 @@ class UpdatePasswordDialog(BasePasswordDialog):
 if __name__ == "__main__":
     import sys
 
-    app = QApplication(sys.argv)
+    try:
+        app = QApplication(sys.argv)
 
-    user_id = get_user_id()
-    if not user_id:
+        try:
+            user_id = get_user_id()
+            if not user_id:
+                QMessageBox.critical(
+                    None, "Error", "You must be logged in to manage passwords."
+                )
+                sys.exit(1)
+        except Exception as auth_error:
+            QMessageBox.critical(
+                None,
+                "Authentication Error",
+                f"Failed to verify user: {str(auth_error)}",
+            )
+            sys.exit(1)
+
+        dialog = AddPasswordDialog(user_id)
+        dialog.exec_()
+
+        sys.exit(app.exec_())
+    except Exception as e:
         QMessageBox.critical(
-            None, "Error", "You must be logged in to manage passwords."
+            None, "Fatal Error", f"Application failed to start: {str(e)}"
         )
-        sys.exit()
-
-    dialog = AddPasswordDialog(user_id)
-    dialog.exec_()
-
-    sys.exit(app.exec_())
+        sys.exit(1)
