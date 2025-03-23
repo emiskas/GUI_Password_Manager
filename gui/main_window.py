@@ -14,8 +14,8 @@ from gui.dialogs.login import LoginDialog
 from gui.dialogs.password import AddPasswordDialog
 from modules.auth import get_current_user, log_out
 from modules.supabase_client import supabase
-from modules.utils import (decrypt_password, export_passwords,
-                           import_passwords, get_user_id, list_passwords)
+from modules.utils import (decrypt_password, export_passwords, get_user_id,
+                           import_passwords, list_passwords)
 
 
 class QRCodeDialog(QDialog):
@@ -108,17 +108,22 @@ class MainWindow(QMainWindow):
 
     def handle_logout(self):
         """Logs out the user and returns to the login screen."""
-        log_out()
-        QMessageBox.information(self, "Logged Out", "You have been logged out.")
-        self.close()
-        main()  # Restart the app and show login dialog
+        try:
+            log_out()
+            QMessageBox.information(self, "Logged Out", "You have been logged out.")
+            self.close()
+            QApplication.quit()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Logout Error", f"Failed to log out: {str(e)}")
 
     def show_qr_code(self):
         """Show QR Code dialog with stored passwords with encryption option."""
         user_id = get_user_id()
 
         if not user_id:
-            return "Error: No authenticated user found."
+            QMessageBox.critical(self, "Error", "No authenticated user found.")
+            return
 
         reply = QMessageBox.question(
             self,
@@ -136,7 +141,6 @@ class MainWindow(QMainWindow):
                 .execute()
             )
         else:
-            # Fetch user's encryption key
             key_response = (
                 supabase.table("user_keys")
                 .select("encryption_salt")
@@ -144,6 +148,12 @@ class MainWindow(QMainWindow):
                 .single()
                 .execute()
             )
+
+            if not key_response.data or "encryption_salt" not in key_response.data:
+                QMessageBox.critical(
+                    self, "Encryption Error", "Could not retrieve encryption key."
+                )
+                return
 
             user_key = key_response.data["encryption_salt"]
 
@@ -159,10 +169,19 @@ class MainWindow(QMainWindow):
             response.data[0]["encrypted_password"] = decrypted_password
 
         passwords = response.data if response.data else []
-        qr_data = json.dumps(passwords)
 
-        self.qr_dialog = QRCodeDialog(qr_data)
-        self.qr_dialog.exec_()
+        try:
+            qr_data = json.dumps(passwords)
+            self.qr_dialog = QRCodeDialog(qr_data)
+            self.qr_dialog.exec_()
+
+        except json.JSONDecodeError:
+            QMessageBox.critical(
+                self, "QR Error", "Failed to generate QR code due to invalid data."
+            )
+
+        except Exception as e:
+            QMessageBox.critical(self, "QR Error", f"Unexpected error: {str(e)}")
 
     def open_add_password_dialog(self):
         """Open the dialog for adding a new password."""
@@ -174,7 +193,10 @@ class MainWindow(QMainWindow):
         try:
             password_list = list_passwords()
 
-            if not password_list:  # Empty list check
+            if not isinstance(password_list, list):
+                raise ValueError("Unexpected data format received.")
+
+            if not password_list:
                 QMessageBox.information(
                     self, "No Passwords", "No passwords stored yet."
                 )
@@ -185,15 +207,13 @@ class MainWindow(QMainWindow):
             dialog.setGeometry(200, 200, 600, 400)
 
             layout = QVBoxLayout(dialog)
-            layout.setContentsMargins(0, 0, 0, 0)
-            layout.setSpacing(0)
-            table = PasswordTable(
-                password_list
-            )  # Ensure PasswordTable handles dictionaries
+            table = PasswordTable(password_list)
             layout.addWidget(table)
-
             dialog.setLayout(layout)
             dialog.exec_()
+
+        except ValueError as ve:
+            QMessageBox.critical(self, "Data Error", f"Invalid data format: {str(ve)}")
         except Exception as e:
             QMessageBox.critical(
                 self, "Error", f"Failed to retrieve passwords: {str(e)}"
@@ -201,49 +221,74 @@ class MainWindow(QMainWindow):
 
     def handle_import(self):
         """Handle the import process."""
-        selected_file, _ = QFileDialog.getOpenFileName(
-            self, "Select Backup File", "backup", "Text Files (*.txt);;All Files (*)"
-        )
-        if not selected_file:
-            return
+        try:
+            selected_file, _ = QFileDialog.getOpenFileName(
+                self,
+                "Select Backup File",
+                "backup",
+                "Text Files (*.txt);;All Files (*)",
+            )
+            if not selected_file:
+                return
 
-        result = import_passwords(selected_file)
-        QMessageBox.information(self, "Import Status", result)
+            result = import_passwords(selected_file)
+            QMessageBox.information(self, "Import Status", result)
+
+        except FileNotFoundError:
+            QMessageBox.warning(self, "Import Error", "File not found.")
+        except Exception as e:
+            QMessageBox.critical(self, "Import Error", f"Failed to import: {str(e)}")
 
     def handle_export(self):
         """Handle the export process with encryption option."""
-        reply = QMessageBox.question(
-            self,
-            "Encrypt Export?",
-            "Do you want to encrypt the exported passwords?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
+        try:
+            reply = QMessageBox.question(
+                self,
+                "Encrypt Export?",
+                "Do you want to encrypt the exported passwords?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
 
-        if reply == QMessageBox.Yes:
-            result = export_passwords()
-        else:
-            result = export_passwords(decrypt=True)
+            if reply == QMessageBox.Yes:
+                result = export_passwords()
+            else:
+                result = export_passwords(decrypt=True)
 
-        QMessageBox.information(self, "Export Status", result)
+            QMessageBox.information(self, "Export Status", result)
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", f"Failed to export: {str(e)}")
 
 
 def main():
     """Application entry point."""
-    app = QApplication(sys.argv)
+    try:
+        app = QApplication(sys.argv)
 
-    login_dialog = LoginDialog()
-    if login_dialog.exec_() == QDialog.Accepted:
-        user = get_current_user()
-        if user:
-            main_window = MainWindow(user.user.id)
-            main_window.show()
-            sys.exit(app.exec_())
+        login_dialog = LoginDialog()
+
+        if login_dialog.exec_() == QDialog.Accepted:
+            user = get_current_user()
+
+            if user:
+                main_window = MainWindow(user.user.id)
+                main_window.show()
+                sys.exit(app.exec_())
+
+            else:
+                QMessageBox.critical(
+                    None, "Authentication Error", "User authentication failed."
+                )
+                sys.exit(1)
+
         else:
-            print("User authentication failed.")
             sys.exit(0)
-    else:
-        sys.exit(0)
+
+    except Exception as e:
+        QMessageBox.critical(
+            None, "Application Error", f"An unexpected error occurred: {str(e)}"
+        )
+        sys.exit(1)
 
 
 if __name__ == "__main__":
