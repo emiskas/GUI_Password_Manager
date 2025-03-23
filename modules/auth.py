@@ -11,7 +11,7 @@ def sign_up(email: str, password: str):
         response = supabase.auth.sign_up({"email": email, "password": password})
 
         if not response or not hasattr(response, "user") or not response.user:
-            return {"success": False, "message": "Sign-up failed. Try again."}
+            return {"success": False, "message": "Sign-up failed. Please try again."}
 
         user_id = response.user.id  # Get user ID
         salt = os.urandom(SALT_SIZE)  # Generate a new random salt
@@ -29,7 +29,7 @@ def sign_up(email: str, password: str):
 
 
 def log_in(email: str, password: str):
-    """Logs in an existing user and derives encryption key."""
+    """Logs in an existing user and derives the encryption key."""
     try:
         response = supabase.auth.sign_in_with_password(
             {"email": email, "password": password}
@@ -41,17 +41,17 @@ def log_in(email: str, password: str):
         user_id = response.user.id
 
         # Retrieve stored salt from `user_keys`
-        salt_response = (
+        salt_data = (
             supabase.table("user_keys")
             .select("encryption_salt")
             .eq("user_id", user_id)
             .execute()
         )
 
-        if not salt_response.data:
+        if not salt_data.data:
             return {"success": False, "message": "Encryption salt not found."}
 
-        salt = base64.b64decode(salt_response.data[0]["encryption_salt"])
+        salt = base64.b64decode(salt_data.data[0]["encryption_salt"])
 
         # Derive encryption key from password
         encryption_key = derive_key(password, salt)
@@ -72,7 +72,7 @@ def log_out():
     """Logs out the currently logged-in user."""
     try:
         supabase.auth.sign_out()
-        return {"success": True, "message": "Logged out successfully"}
+        return {"success": True, "message": "Logged out successfully."}
     except Exception as e:
         return {"success": False, "message": f"Logout error: {str(e)}"}
 
@@ -91,7 +91,7 @@ def is_logged_in():
     return get_current_user() is not None
 
 
-def request_password_reset(email):
+def request_password_reset(email: str):
     """Send an OTP for password reset via Supabase."""
     try:
         # Check if the email exists before sending the reset request
@@ -102,18 +102,19 @@ def request_password_reset(email):
         if not user_check.data:
             return {"success": False, "message": "No account found with this email."}
 
+        # Send OTP request to the user's email
         supabase.auth.reset_password_for_email(email)
         return {"success": True, "message": "OTP sent to your email."}
 
     except Exception:
         return {
             "success": False,
-            "message": f"Error sending OTP: Entered email is not registered.",
+            "message": "Error sending OTP: The entered email is not registered or an unknown error occurred.",
         }
 
 
-def verify_otp_and_reset_password(email, otp, new_password):
-    """Verify OTP and reset password in Supabase."""
+def verify_otp_and_reset_password(email: str, otp: str, new_password: str):
+    """Verify OTP and reset the password in Supabase."""
     try:
         # Verify the OTP
         response = supabase.auth.verify_otp(
@@ -123,11 +124,11 @@ def verify_otp_and_reset_password(email, otp, new_password):
         if not response:
             return {"success": False, "message": "Invalid or expired OTP."}
 
-        # Update password after OTP is verified
+        # Update the password after OTP is verified
         update_response = supabase.auth.update_user({"password": new_password})
 
         if not update_response:
-            return {"success": False, "message": "Failed to update password."}
+            return {"success": False, "message": "Failed to update the password."}
 
         return {"success": True, "message": "Password reset successful."}
 
