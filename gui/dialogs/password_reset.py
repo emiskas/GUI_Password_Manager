@@ -48,29 +48,40 @@ class PasswordResetDialog(QDialog):
 
     def send_reset_email(self):
         """Request an OTP from Supabase."""
-        email = self.email_input.text()
+        email = self.email_input.text().strip()
 
         if not email:
             QMessageBox.warning(self, "Input Error", "Please enter your email.")
             return
 
-        response = request_password_reset(email)
-        QMessageBox.information(self, "Password Reset", response["message"])
+        try:
+            response = request_password_reset(email)
+            if not response or "message" not in response:
+                raise ValueError("Invalid response from server.")
+            QMessageBox.information(self, "Password Reset", response["message"])
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to send reset email: {str(e)}")
 
     def reset_password(self):
         """Verify OTP and reset the password."""
-        email = self.email_input.text()
-        otp = self.otp_input.text()
-        new_password = self.new_password_input.text()
+        email = self.email_input.text().strip()
+        otp = self.otp_input.text().strip()
+        new_password = self.new_password_input.text().strip()
 
         if not email or not otp or not new_password:
             QMessageBox.warning(self, "Input Error", "All fields are required.")
             return
 
-        response = verify_otp_and_reset_password(email, otp, new_password)
+        try:
+            response = verify_otp_and_reset_password(email, otp, new_password)
+            if not response or "success" not in response:
+                raise ValueError("Invalid response from server.")
 
-        if response["success"]:
-            QMessageBox.information(self, "Success", response["message"])
-            self.close()  # Close the dialog after success
-        else:
-            QMessageBox.critical(self, "Error", response["message"])
+            if response["success"]:
+                QMessageBox.information(self, "Success", response["message"])
+                self.close()  # Close the dialog after success
+            else:
+                QMessageBox.warning(self, "Error", response["message"])
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to reset password: {str(e)}")
