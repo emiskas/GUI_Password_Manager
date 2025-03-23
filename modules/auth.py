@@ -10,25 +10,22 @@ def sign_up(email: str, password: str):
     try:
         response = supabase.auth.sign_up({"email": email, "password": password})
 
-        if response.user:
-            user_id = response.user.id  # Get user ID
-            salt = os.urandom(SALT_SIZE)  # Generate a new random salt
-            salt_encoded = base64.b64encode(salt).decode()  # Encode it for storage
+        if not response or not hasattr(response, "user") or not response.user:
+            return {"success": False, "message": "Sign-up failed. Try again."}
 
-            # Store the salt in a separate table `user_keys`
-            supabase.table("user_keys").insert(
-                {"user_id": user_id, "encryption_salt": salt_encoded}
-            ).execute()
+        user_id = response.user.id  # Get user ID
+        salt = os.urandom(SALT_SIZE)  # Generate a new random salt
+        salt_encoded = base64.b64encode(salt).decode()  # Encode it for storage
 
-            return {
-                "success": True,
-                "message": "Sign-up successful! You can now log in.",
-            }
+        # Store the salt in a separate table `user_keys`
+        supabase.table("user_keys").insert(
+            {"user_id": user_id, "encryption_salt": salt_encoded}
+        ).execute()
 
-        return {"success": False, "message": "Sign-up failed. Try again."}
+        return {"success": True, "message": "Sign-up successful! You can now log in."}
 
     except Exception as e:
-        return {"success": False, "message": str(e)}
+        return {"success": False, "message": f"Sign-up error: {str(e)}"}
 
 
 def log_in(email: str, password: str):
@@ -38,37 +35,37 @@ def log_in(email: str, password: str):
             {"email": email, "password": password}
         )
 
-        if response.user:
-            user_id = response.user.id
+        if not response or not hasattr(response, "user") or not response.user:
+            return {"success": False, "message": "Invalid email or password."}
 
-            # Retrieve stored salt from `user_keys`
-            salt_response = (
-                supabase.table("user_keys")
-                .select("encryption_salt")
-                .eq("user_id", user_id)
-                .execute()
-            )
+        user_id = response.user.id
 
-            if not salt_response.data:
-                return {"success": False, "message": "Encryption salt not found."}
+        # Retrieve stored salt from `user_keys`
+        salt_response = (
+            supabase.table("user_keys")
+            .select("encryption_salt")
+            .eq("user_id", user_id)
+            .execute()
+        )
 
-            salt = base64.b64decode(salt_response.data[0]["encryption_salt"])
+        if not salt_response.data:
+            return {"success": False, "message": "Encryption salt not found."}
 
-            # Derive encryption key from password
-            encryption_key = derive_key(password, salt)
+        salt = base64.b64decode(salt_response.data[0]["encryption_salt"])
 
-            user_data = {
-                "id": user_id,
-                "email": response.user.email,
-                "encryption_key": encryption_key,  # Store the derived key in memory
-            }
+        # Derive encryption key from password
+        encryption_key = derive_key(password, salt)
 
-            return {"success": True, "user": user_data}
+        user_data = {
+            "id": user_id,
+            "email": response.user.email,
+            "encryption_key": encryption_key,  # Store the derived key in memory
+        }
 
-        return {"success": False, "message": "Invalid credentials"}
+        return {"success": True, "user": user_data}
 
     except Exception as e:
-        return {"success": False, "message": str(e)}
+        return {"success": False, "message": f"Login error: {str(e)}"}
 
 
 def log_out():
@@ -77,7 +74,7 @@ def log_out():
         supabase.auth.sign_out()
         return {"success": True, "message": "Logged out successfully"}
     except Exception as e:
-        return {"success": False, "message": str(e)}
+        return {"success": False, "message": f"Logout error: {str(e)}"}
 
 
 def get_current_user():
@@ -97,12 +94,22 @@ def is_logged_in():
 def request_password_reset(email):
     """Send an OTP for password reset via Supabase."""
     try:
-        supabase.auth.reset_password_for_email(email)
+        # Check if the email exists before sending the reset request
+        user_check = (
+            supabase.table("auth.users").select("id").eq("email", email).execute()
+        )
 
+        if not user_check.data:
+            return {"success": False, "message": "No account found with this email."}
+
+        supabase.auth.reset_password_for_email(email)
         return {"success": True, "message": "OTP sent to your email."}
 
-    except Exception as e:
-        return {"success": False, "message": f"Error: {str(e)}"}
+    except Exception:
+        return {
+            "success": False,
+            "message": f"Error sending OTP: Entered email is not registered.",
+        }
 
 
 def verify_otp_and_reset_password(email, otp, new_password):
@@ -113,15 +120,16 @@ def verify_otp_and_reset_password(email, otp, new_password):
             {"email": email, "token": otp, "type": "recovery"}
         )
 
-        if response:
-            # Update password after OTP is verified
-            update_response = supabase.auth.update_user({"password": new_password})
+        if not response:
+            return {"success": False, "message": "Invalid or expired OTP."}
 
-            if update_response:
-                return {"success": True, "message": "Password reset successful."}
+        # Update password after OTP is verified
+        update_response = supabase.auth.update_user({"password": new_password})
+
+        if not update_response:
             return {"success": False, "message": "Failed to update password."}
 
-        return {"success": False, "message": "Invalid OTP."}
+        return {"success": True, "message": "Password reset successful."}
 
     except Exception as e:
-        return {"success": False, "message": str(e)}
+        return {"success": False, "message": f"Password reset error: {str(e)}"}
