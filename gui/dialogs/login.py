@@ -49,66 +49,71 @@ class LoginDialog(QDialog):
             password = self.password_input.text()
 
             # Validate inputs
-            if not email or not password:
-                QMessageBox.warning(
-                    self, "Input Error", "Please enter email and password."
-                )
-                return
-
-            # Password minimum length check
-            if len(password) < 8:
-                QMessageBox.warning(
-                    self, "Input Error", "Password must be at least 8 characters."
-                )
+            if not self.validate_inputs(email, password):
                 return
 
             try:
                 response = log_in(email, password)
 
             except TimeoutError:
-                QMessageBox.critical(
-                    self,
+                self.show_error(
                     "Connection Error",
                     "Authentication service timed out. Please try again later.",
                 )
                 return
 
             except Exception as auth_error:
-                QMessageBox.critical(
-                    self, "Authentication Error", f"Login failed: {str(auth_error)}"
+                self.show_error(
+                    "Authentication Error", f"Login failed: {str(auth_error)}"
                 )
                 return
 
             if not isinstance(response, dict):
-                QMessageBox.critical(
-                    self,
-                    "System Error",
-                    "Invalid response from authentication service.",
+                self.show_error(
+                    "System Error", "Invalid response from authentication service."
                 )
                 return
 
             if response.get("success"):
                 self.accept()  # Close the dialog and proceed
-
             else:
                 error_message = response.get("message", "Unknown error occurred")
-                QMessageBox.critical(self, "Login Failed", error_message)
-
-                # Specific handling for different error types
-                if "password" in error_message.lower():
-                    self.password_input.clear()
-                    self.password_input.setFocus()
-
-                elif (
-                    "not found" in error_message.lower()
-                    or "email" in error_message.lower()
-                ):
-                    self.email_input.setFocus()
+                self.handle_login_failure(error_message)
 
         except Exception as e:
-            QMessageBox.critical(
-                self, "System Error", f"An unexpected error occurred: {str(e)}"
-            )
+            self.show_error("System Error", f"An unexpected error occurred: {str(e)}")
+
+    def validate_inputs(self, email, password):
+        """Validate user inputs."""
+        if not email or not password:
+            self.show_warning("Input Error", "Please enter email and password.")
+            return False
+
+        if len(password) < 8:
+            self.show_warning("Input Error", "Password must be at least 8 characters.")
+            return False
+
+        return True
+
+    def show_warning(self, title, message):
+        """Show a warning message box."""
+        QMessageBox.warning(self, title, message)
+
+    def show_error(self, title, message):
+        """Show an error message box."""
+        QMessageBox.critical(self, title, message)
+
+    def handle_login_failure(self, error_message):
+        """Handle login failure and show appropriate feedback."""
+        self.show_error("Login Failed", error_message)
+
+        # Specific handling for different error types
+        if "password" in error_message.lower():
+            self.password_input.clear()
+            self.password_input.setFocus()
+
+        elif "not found" in error_message.lower() or "email" in error_message.lower():
+            self.email_input.setFocus()
 
     def open_signup_dialog(self):
         """Open the SignUpDialog when the user clicks Sign Up."""
@@ -117,9 +122,7 @@ class LoginDialog(QDialog):
             signup_dialog.exec_()
 
         except Exception as e:
-            QMessageBox.critical(
-                self, "Dialog Error", f"Failed to open signup dialog: {str(e)}"
-            )
+            self.show_error("Dialog Error", f"Failed to open signup dialog: {str(e)}")
 
     def open_reset_password_dialog(self):
         """Open the Password Reset dialog."""
@@ -127,6 +130,6 @@ class LoginDialog(QDialog):
             reset_dialog = PasswordResetDialog()
             reset_dialog.exec_()
         except Exception as e:
-            QMessageBox.critical(
-                self, "Dialog Error", f"Failed to open password reset dialog: {str(e)}"
+            self.show_error(
+                "Dialog Error", f"Failed to open password reset dialog: {str(e)}"
             )
