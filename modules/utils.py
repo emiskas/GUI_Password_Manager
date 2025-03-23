@@ -69,16 +69,6 @@ def decrypt_password(encrypted_password, user_key):
         }
 
 
-def get_env_path():
-    """
-    Resolve the path to the .env file.
-
-    Returns:
-        Path: Path object pointing to the .env file.
-    """
-    return Path(__file__).parent.parent / ".env"
-
-
 def get_user_id():
     """Retrieve the user ID of the currently logged-in user."""
     try:
