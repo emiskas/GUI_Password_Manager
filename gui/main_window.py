@@ -191,10 +191,12 @@ class MainWindow(QMainWindow):
     def display_passwords(self):
         """Display a table of stored passwords."""
         try:
-            password_list = list_passwords()
+            response = list_passwords()
 
-            if not isinstance(password_list, list):
-                raise ValueError("Unexpected data format received.")
+            if not response["success"]:
+                raise ValueError(response["message"])
+
+            password_list = response["data"]
 
             if not password_list:
                 QMessageBox.information(
@@ -255,7 +257,11 @@ class MainWindow(QMainWindow):
             else:
                 result = export_passwords(decrypt=True)
 
-            QMessageBox.information(self, "Export Status", result)
+            if result["success"]:
+                QMessageBox.information(self, "Export Status", result["message"])
+            else:
+                QMessageBox.critical(self, "Export Error", result["message"])
+
         except Exception as e:
             QMessageBox.critical(self, "Export Error", f"Failed to export: {str(e)}")
 
