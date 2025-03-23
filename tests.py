@@ -275,9 +275,13 @@ def test_request_password_reset_success():
             assert result["success"] == True
 
 
-def test_request_password_reset_failure():
-    email = "nonexistent@example.com"
-
+@pytest.mark.parametrize(
+    "email, expected_success",
+    [
+        ("nonexistent@example.com", False),
+    ],
+)
+def test_request_password_reset_failure(email, expected_success):
     # Mock checking for the user
     mock_check_user = MagicMock()
     mock_check_user.return_value = []  # Simulate no user found
@@ -287,7 +291,7 @@ def test_request_password_reset_failure():
         result = request_password_reset(email)
 
         # Assert: Ensure password reset fails
-        assert result["success"] == False
+        assert result["success"] == expected_success
         assert (
             result["message"] == "Error sending OTP: Entered email is not registered."
         )
