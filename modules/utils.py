@@ -58,8 +58,15 @@ def decrypt_password(encrypted_password, user_key):
         decrypted_password = cipher.decrypt_and_verify(ciphertext, tag)
 
         return decrypted_password.decode()
+
+    except ValueError as e:
+        return {"success": False, "message": "Decryption failed: Invalid key or data."}
+
     except Exception as e:
-        return f"Error decrypting password: {str(e)}"
+        return {
+            "success": False,
+            "message": f"Unexpected error during decryption: {str(e)}",
+        }
 
 
 def get_env_path():
@@ -76,16 +83,15 @@ def get_user_id():
     """Retrieve the user ID of the currently logged-in user."""
     try:
         user_response = supabase.auth.get_user()
-        if user_response and hasattr(user_response, "user"):
-            user = user_response.user
-            if user and hasattr(user, "id"):
-                return user.id
+        user = getattr(user_response, "user", None)
 
-        print("Error: User ID not found.")
-        return None
+        if not user or not getattr(user, "id", None):
+            return {"success": False, "message": "User ID not found."}
+
+        return user.id
+
     except Exception as e:
-        print(f"Error retrieving user: {e}")
-        return None
+        return {"success": False, "message": f"Error retrieving user: {str(e)}"}
 
 
 def add_password(service_name, username, plain_password):
@@ -127,11 +133,12 @@ def add_password(service_name, username, plain_password):
 
 def retrieve_password(service_name):
     """Retrieve and decrypt a password from Supabase."""
-    user_id = get_user_id()
-    if not user_id:
-        return "Error: No authenticated user found."
+    user_id_response = get_user_id()
+    if isinstance(user_id_response, dict):
+        return user_id_response  # Return the error message
 
-    # Fetch user's encryption key
+    user_id = user_id_response
+
     key_response = (
         supabase.table("user_keys")
         .select("encryption_salt")
@@ -139,12 +146,12 @@ def retrieve_password(service_name):
         .single()
         .execute()
     )
-    if not key_response.data:
-        return "Error: Encryption key not found."
 
-    user_key = key_response.data["encryption_salt"]
+    if not key_response.get("data"):
+        return {"success": False, "message": "Encryption key not found."}
 
-    # Fetch the encrypted password
+    user_key = key_response["data"].get("encryption_salt")
+
     response = (
         supabase.table("passwords")
         .select("service_name, username, encrypted_password")
@@ -153,18 +160,25 @@ def retrieve_password(service_name):
         .execute()
     )
 
-    if response.data:
-        entry = response.data[0]
+    if not response.get("data"):
+        return {
+            "success": False,
+            "message": f"No entry found for service: {service_name}",
+        }
 
-        decrypted_password = decrypt_password(entry["encrypted_password"], user_key)
+    entry = response["data"][0]
 
-        return (
-            f"Service: {entry['service_name']}\n"
-            f"Username: {entry['username']}\n"
-            f"Password: {decrypted_password}"
-        )
-    else:
-        return f"No entry found for service: {service_name}"
+    decrypted_password = decrypt_password(entry["encrypted_password"], user_key)
+
+    if "Error" in decrypted_password:
+        return {"success": False, "message": decrypted_password}
+
+    return {
+        "success": True,
+        "service": entry["service_name"],
+        "username": entry["username"],
+        "password": decrypted_password,
+    }
 
 
 def list_passwords():
