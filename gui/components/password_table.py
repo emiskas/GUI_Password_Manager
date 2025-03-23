@@ -31,118 +31,88 @@ class PasswordTable(QTableWidget):
 
             # Populate the table rows
             for row, password_entry in enumerate(password_list):
-                try:
-                    if not isinstance(password_entry, dict):
-                        QApplication.processEvents()  # Keep UI responsive
-                        continue  # Skip invalid entries
-
-                    service = password_entry.get("service_name", "Unknown")
-                    username = password_entry.get("username", "Unknown")
-
-                    # Add service and username to the table
-                    service_item = QTableWidgetItem(service)
-                    username_item = QTableWidgetItem(username)
-
-                    # Make cells non-editable
-                    service_item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                    username_item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-
-                    self.setItem(row, 0, service_item)
-                    self.setItem(row, 1, username_item)
-
-                    # Add "View" button
-                    view_button = QPushButton("View")
-                    view_button.clicked.connect(
-                        lambda _, r=row: self.handle_view_click(r)
-                    )
-                    self.setCellWidget(row, 2, view_button)
-                except Exception as row_error:
-                    QMessageBox.warning(
-                        self,
-                        "Display Warning",
-                        f"Failed to display entry at row {row}: {str(row_error)}",
-                    )
-                    # Create empty row with error indication
-                    self.setItem(row, 0, QTableWidgetItem("Error"))
-                    self.setItem(row, 1, QTableWidgetItem("Failed to load"))
-                    self.setCellWidget(row, 2, QPushButton("N/A"))
+                self.add_table_row(row, password_entry)
 
             self.resizeColumnsToContents()
         except Exception as init_error:
-            QMessageBox.critical(
-                None,
-                "Table Error",
-                f"Failed to initialize password table: {str(init_error)}",
-            )
-            # Create a minimally functional table
-            super().__init__(0, 3)
-            self.setHorizontalHeaderLabels(["Service", "Username", "Actions"])
+            self.handle_table_error(init_error)
+
+    def add_table_row(self, row, password_entry):
+        """Add a row to the table and handle errors gracefully."""
+        try:
+            if not isinstance(password_entry, dict):
+                QApplication.processEvents()  # Keep UI responsive
+                raise ValueError(f"Invalid entry at row {row}, skipping.")
+
+            service = password_entry.get("service_name", "Unknown")
+            username = password_entry.get("username", "Unknown")
+
+            # Add service and username to the table
+            service_item = QTableWidgetItem(service)
+            username_item = QTableWidgetItem(username)
+
+            # Make cells non-editable
+            service_item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+            username_item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+
+            self.setItem(row, 0, service_item)
+            self.setItem(row, 1, username_item)
+
+            # Add "View" button
+            view_button = QPushButton("View")
+            view_button.clicked.connect(lambda _, r=row: self.handle_view_click(r))
+            self.setCellWidget(row, 2, view_button)
+
+        except Exception as row_error:
+            self.handle_row_error(row, row_error)
+
+    def handle_row_error(self, row, error):
+        """Handle errors for a specific row and show a warning."""
+        QMessageBox.warning(
+            self,
+            "Display Warning",
+            f"Failed to display entry at row {row}: {str(error)}",
+        )
+        # Create empty row with error indication
+        self.setItem(row, 0, QTableWidgetItem("Error"))
+        self.setItem(row, 1, QTableWidgetItem("Failed to load"))
+        self.setCellWidget(row, 2, QPushButton("N/A"))
+
+    def handle_table_error(self, error):
+        """Handle errors during table initialization."""
+        QMessageBox.critical(
+            None,
+            "Table Error",
+            f"Failed to initialize password table: {str(error)}",
+        )
+        # Create a minimally functional table
+        super().__init__(0, 3)
+        self.setHorizontalHeaderLabels(["Service", "Username", "Actions"])
 
     def handle_view_click(self, row):
         """Handle the View button click to fetch and decrypt password from Supabase."""
-        # Check row bounds
         if row < 0 or row >= self.rowCount():
-            QMessageBox.warning(self, "Error", "Invalid row selection.")
-            return
-
-        # Validate cell items exist
-        if not self.item(row, 0) or not self.item(row, 1):
-            QMessageBox.warning(self, "Error", "Row data is incomplete.")
+            self.show_error_message("Invalid row selection.")
             return
 
         service = self.item(row, 0).text()
         username = self.item(row, 1).text()
 
-        # Check if this is an error row
         if service == "Error" and "Failed to load" in username:
-            QMessageBox.warning(
-                self,
-                "Error",
-                "This entry failed to load properly and cannot be viewed.",
+            self.show_error_message(
+                "This entry failed to load properly and cannot be viewed."
             )
             return
 
         QApplication.setOverrideCursor(Qt.WaitCursor)  # Show waiting cursor
 
         try:
-            # First database call - get password
-            try:
-                response = (
-                    supabase.table("passwords")
-                    .select("encrypted_password, user_id")
-                    .eq("service_name", service)
-                    .eq("username", username)
-                    .single()
-                    .execute()
-                )
-            except TimeoutError:
-                QApplication.restoreOverrideCursor()
-                QMessageBox.critical(
-                    self,
-                    "Connection Error",
-                    "Database query timed out. Check your connection and try again.",
-                )
-                return
-            except supabase.PostgrestError as db_error:
-                QApplication.restoreOverrideCursor()
-                QMessageBox.critical(
-                    self, "Database Error", f"Database query failed: {str(db_error)}"
-                )
-                return
-            except Exception as query_error:
-                QApplication.restoreOverrideCursor()
-                QMessageBox.critical(
-                    self,
-                    "Query Error",
-                    f"Failed to retrieve password data: {str(query_error)}",
-                )
-                return
+            # Fetch encrypted password data
+            response = self.fetch_password_data(service, username)
 
             if not response or not response.data:
                 QApplication.restoreOverrideCursor()
-                QMessageBox.warning(
-                    self, "Not Found", "No password found for this service."
-                )
+                self.show_error_message("No password found for this service.")
                 return
 
             encrypted_password = response.data.get("encrypted_password")
@@ -150,107 +120,100 @@ class PasswordTable(QTableWidget):
 
             if not encrypted_password or not user_id:
                 QApplication.restoreOverrideCursor()
-                QMessageBox.critical(self, "Data Error", "Password data is incomplete.")
+                self.show_error_message("Password data is incomplete.")
                 return
 
-            # Second database call - get encryption key
-            try:
-                key_response = (
-                    supabase.table("user_keys")
-                    .select("encryption_salt")
-                    .eq("user_id", user_id)
-                    .single()
-                    .execute()
-                )
-            except TimeoutError:
-                QApplication.restoreOverrideCursor()
-                QMessageBox.critical(
-                    self,
-                    "Connection Error",
-                    "Key retrieval timed out. Check your connection and try again.",
-                )
-                return
-            except supabase.PostgrestError as db_error:
-                QApplication.restoreOverrideCursor()
-                QMessageBox.critical(
-                    self,
-                    "Database Error",
-                    f"Failed to retrieve encryption key: {str(db_error)}",
-                )
-                return
-            except Exception as key_error:
-                QApplication.restoreOverrideCursor()
-                QMessageBox.critical(
-                    self,
-                    "Key Error",
-                    f"Failed to retrieve encryption key: {str(key_error)}",
-                )
-                return
+            # Fetch encryption key data
+            key_response = self.fetch_encryption_key(user_id)
 
             if not key_response or not key_response.data:
                 QApplication.restoreOverrideCursor()
-                QMessageBox.critical(
-                    self, "Error", "Encryption key not found for user."
-                )
+                self.show_error_message("Encryption key not found for user.")
                 return
 
             user_key = key_response.data.get("encryption_salt")
 
             if not user_key:
                 QApplication.restoreOverrideCursor()
-                QMessageBox.critical(self, "Key Error", "Invalid encryption key.")
+                self.show_error_message("Invalid encryption key.")
                 return
 
             # Decrypt password
-            try:
-                decrypted_password = decrypt_password(encrypted_password, user_key)
+            decrypted_password = decrypt_password(encrypted_password, user_key)
 
-                if not decrypted_password:
-                    QApplication.restoreOverrideCursor()
-                    QMessageBox.critical(
-                        self, "Decryption Error", "Failed to decrypt password."
-                    )
-                    return
-            except Exception as decrypt_error:
+            if not decrypted_password:
                 QApplication.restoreOverrideCursor()
-                QMessageBox.critical(
-                    self,
-                    "Decryption Error",
-                    f"Failed to decrypt password: {str(decrypt_error)}",
-                )
+                self.show_error_message("Failed to decrypt password.")
                 return
 
             QApplication.restoreOverrideCursor()  # Restore cursor
 
-            # Create and show dialog
-            try:
-                dialog = UpdatePasswordDialog(
-                    user_id, service, username, decrypted_password, row, self
-                )
-
-                if (
-                    dialog.exec_() == QDialog.Accepted
-                    and dialog.updated_service
-                    and dialog.updated_username
-                ):
-                    service_item = QTableWidgetItem(dialog.updated_service)
-                    username_item = QTableWidgetItem(dialog.updated_username)
-
-                    # Make cells non-editable
-                    service_item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                    username_item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-
-                    self.setItem(row, 0, service_item)
-                    self.setItem(row, 1, username_item)
-            except Exception as dialog_error:
-                QMessageBox.critical(
-                    self,
-                    "Dialog Error",
-                    f"Failed to open password dialog: {str(dialog_error)}",
-                )
+            # Open password update dialog
+            self.show_update_password_dialog(
+                user_id, service, username, decrypted_password, row
+            )
 
         except Exception as e:
-            QApplication.restoreOverrideCursor()  # Ensure cursor is restored
-            QMessageBox.critical(
-                self, "Error", f"Failed to retrieve password: {str(e)}"
+            QApplication.restoreOverrideCursor()
+            self.show_error_message(f"Failed to retrieve password: {str(e)}")
+
+    def fetch_password_data(self, service, username):
+        """Fetch encrypted password data from the database."""
+        try:
+            return (
+                supabase.table("passwords")
+                .select("encrypted_password, user_id")
+                .eq("service_name", service)
+                .eq("username", username)
+                .single()
+                .execute()
+            )
+        except Exception as e:
+            self.show_error_message(f"Failed to retrieve password data: {str(e)}")
+            return None
+
+    def fetch_encryption_key(self, user_id):
+        """Fetch encryption key from the database."""
+        try:
+            return (
+                supabase.table("user_keys")
+                .select("encryption_salt")
+                .eq("user_id", user_id)
+                .single()
+                .execute()
+            )
+        except Exception as e:
+            self.show_error_message(f"Failed to retrieve encryption key: {str(e)}")
+            return None
+
+    def show_error_message(self, message):
+        """Show an error message dialog."""
+        QMessageBox.critical(self, "Error", message)
+
+    def show_update_password_dialog(
+        self, user_id, service, username, decrypted_password, row
+    ):
+        """Show the update password dialog."""
+        try:
+            dialog = UpdatePasswordDialog(
+                user_id, service, username, decrypted_password, row, self
+            )
+
+            if (
+                dialog.exec_() == QDialog.Accepted
+                and dialog.updated_service
+                and dialog.updated_username
+            ):
+                service_item = QTableWidgetItem(dialog.updated_service)
+                username_item = QTableWidgetItem(dialog.updated_username)
+
+                # Make cells non-editable
+                service_item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                username_item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+
+                self.setItem(row, 0, service_item)
+                self.setItem(row, 1, username_item)
+        except Exception as dialog_error:
+            self.show_error_message(
+                f"Failed to open password dialog: {str(dialog_error)}"
             )
