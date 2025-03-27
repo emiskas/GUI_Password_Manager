@@ -94,22 +94,17 @@ def is_logged_in():
 def request_password_reset(email: str):
     """Send an OTP for password reset via Supabase."""
     try:
-        # Check if the email exists before sending the reset request
-        user_check = (
-            supabase.table("auth.users").select("id").eq("email", email).execute()
-        )
-
-        if not user_check.data:
-            return {"success": False, "message": "No account found with this email."}
-
-        # Send OTP request to the user's email
         supabase.auth.reset_password_for_email(email)
-        return {"success": True, "message": "OTP sent to your email."}
+
+        return {
+            "success": True,
+            "message": "Check your email inbox. If you can't see the one-time password, make sure to check the 'Spam' and 'Junk' folders.",
+        }
 
     except Exception:
         return {
             "success": False,
-            "message": "Error sending OTP: The entered email is not registered or an unknown error occurred.",
+            "message": "An unknown error occurred.",
         }
 
 
@@ -122,7 +117,10 @@ def verify_otp_and_reset_password(email: str, otp: str, new_password: str):
         )
 
         if not response:
-            return {"success": False, "message": "Invalid or expired OTP."}
+            return {
+                "success": False,
+                "message": "Invalid or expired one-time password.",
+            }
 
         # Update the password after OTP is verified
         update_response = supabase.auth.update_user({"password": new_password})

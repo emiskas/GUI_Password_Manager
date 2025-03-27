@@ -9,7 +9,7 @@ class PasswordResetDialog(QDialog):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Reset Password")
+        self.setWindowTitle("Forgot password")
         self.setGeometry(400, 200, 300, 200)
 
         layout = QVBoxLayout()
@@ -58,7 +58,7 @@ class PasswordResetDialog(QDialog):
             response = request_password_reset(email)
             if not response or "message" not in response:
                 raise ValueError("Invalid response from server.")
-            QMessageBox.information(self, "Password Reset", response["message"])
+            QMessageBox.information(self, "Password reset", response["message"])
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to send reset email: {str(e)}")
 
