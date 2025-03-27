@@ -101,10 +101,10 @@ def request_password_reset(email: str):
             "message": "Check your email inbox. If you can't see the one-time password, make sure to check the 'Spam' and 'Junk' folders.",
         }
 
-    except Exception:
+    except Exception as e:
         return {
             "success": False,
-            "message": "An unknown error occurred.",
+            "message": f"An error occurred: {str(e)}",
         }
 
 
