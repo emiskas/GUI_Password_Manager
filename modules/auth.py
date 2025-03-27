@@ -94,6 +94,17 @@ def is_logged_in():
 def request_password_reset(email: str):
     """Send an OTP for password reset via Supabase."""
     try:
+        # Use an RPC function to check if the user exists in auth.users
+        user = supabase.rpc("get_user_by_email", {"p_email": email}).execute()
+
+        # If no user is found, return failure
+        if not user.data:
+            return {
+                "success": False,
+                "message": "The entered email is not registered.",
+            }
+
+        # If user exists, proceed with password reset
         supabase.auth.reset_password_for_email(email)
 
         return {
@@ -104,7 +115,7 @@ def request_password_reset(email: str):
     except Exception as e:
         return {
             "success": False,
-            "message": f"An error occurred: {str(e)}",
+            "message": f"Error sending one-time password: {str(e)}",
         }
 
 
