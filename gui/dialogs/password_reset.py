@@ -18,11 +18,11 @@ class PasswordResetDialog(QDialog):
         self.email_label = QLabel("Enter your email:")
         self.email_input = QLineEdit()
 
-        self.send_otp_button = QPushButton("Send OTP")
+        self.send_otp_button = QPushButton("Send One-time password")
         self.send_otp_button.clicked.connect(self.send_reset_email)
 
         # OTP input
-        self.otp_label = QLabel("Enter OTP:")
+        self.otp_label = QLabel("Enter One-time password:")
         self.otp_input = QLineEdit()
 
         # New password input
@@ -79,7 +79,8 @@ class PasswordResetDialog(QDialog):
 
             if response["success"]:
                 QMessageBox.information(self, "Success", response["message"])
-                self.close()  # Close the dialog after success
+                self.close()
+
             else:
                 QMessageBox.warning(self, "Error", response["message"])
 
