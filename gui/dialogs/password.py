@@ -143,7 +143,7 @@ class UpdatePasswordDialog(BasePasswordDialog):
         self.username_input = QLineEdit(username)
 
         self.password_label = QLabel("Password:")
-        self.password_input = QLineEdit(encrypted_password)
+        self.password_input = QLineEdit(encrypted_password["decrypted_password"])
         self.password_input.setEchoMode(QLineEdit.Password)
 
         # Buttons
