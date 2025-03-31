@@ -15,6 +15,19 @@ KEY_SIZE = 32  # AES-256
 ITERATIONS = 100000
 
 
+def is_duplicate_entry(service_name, username, user_id):
+    """Check if a service-name & username combo already exists for the user in Supabase."""
+    response = (
+        supabase.table("passwords")
+        .select("id")
+        .eq("user_id", user_id)
+        .eq("service_name", service_name)
+        .eq("username", username)
+        .execute()
+    )
+    return bool(response.data)
+
+
 def derive_key(user_password: str, salt: bytes) -> bytes:
     """Derives a 256-bit AES encryption key from the user's login password."""
     kdf = PBKDF2HMAC(
@@ -100,38 +113,42 @@ def add_password(service_name, username, plain_password):
         .execute()
     )
 
-    if not response.get("data"):
+    if not response.data:
         return {
             "success": False,
             "message": "Error: Encryption key not found for this user.",
         }
 
-    user_key = response["data"].get("encryption_salt")
+    user_key = response.data["encryption_salt"]
 
     # Encrypt the password
     encrypted_password = encrypt_password(plain_password, user_key)
 
-    try:
-        insert_response = (
-            supabase.table("passwords")
-            .insert(
-                {
-                    "user_id": user_id,
-                    "service_name": service_name,
-                    "username": username,
-                    "encrypted_password": encrypted_password["encrypted_password"],
-                }
+    if not is_duplicate_entry(service_name, username, user_id):
+        try:
+            insert_response = (
+                supabase.table("passwords")
+                .insert(
+                    {
+                        "user_id": user_id,
+                        "service_name": service_name,
+                        "username": username,
+                        "encrypted_password": encrypted_password["encrypted_password"],
+                    }
+                )
+                .execute()
             )
-            .execute()
-        )
 
-        if "data" in insert_response:
-            return {"success": True, "message": "Password added successfully"}
-        else:
-            return {"success": False, "message": "Failed to add password"}
+            if "data" in insert_response:
+                return {"success": True, "message": "Password added successfully"}
+            else:
+                return {"success": False, "message": "Failed to add password"}
 
-    except Exception as e:
-        return {"success": False, "message": f"Database error: {str(e)}"}
+        except Exception as e:
+            return {"success": False, "message": f"Database error: {str(e)}"}
+
+    else:
+        return {"success": False, "message": f"Username {username} for the service {service_name} already exists."}
 
 
 def retrieve_password(service_name):
@@ -216,10 +233,10 @@ def generate_password(length=16):
     return "".join(random.choice(characters) for i in range(0, length))
 
 
-def is_base64(s):
+def is_base64(string):
     """Checks if a string is valid Base64."""
     try:
-        base64.b64decode(s, validate=True)
+        base64.b64decode(string, validate=True)
         return True
     except Exception:
         return False
@@ -305,6 +322,15 @@ def import_passwords(path):
     if not os.path.exists(path):
         return {"success": False, "message": "Error: File not found."}
 
+    user_id_response = get_user_id()
+
+    if not user_id_response["success"]:
+        return (
+            user_id_response
+        )
+
+    user_id = user_id_response["user_id"]
+
     try:
         with open(path, "r") as f:
             lines = f.readlines()
@@ -321,16 +347,7 @@ def import_passwords(path):
                 password = parts[2].split(": ")[1]
 
                 if is_base64(password):
-                    user_id_response = get_user_id()
-
-                    if not user_id_response["success"]:
-                        return (
-                            user_id_response  # Return error if user ID retrieval failed
-                        )
-
-                    user_id = user_id_response["user_id"]
-
-                    # Fetch user's encryption key
+                    # Fetch user's encryption salt
                     key_response = (
                         supabase.table("user_keys")
                         .select("encryption_salt")
@@ -343,12 +360,12 @@ def import_passwords(path):
                         "decrypted_password"
                     ]
 
-                # Insert into Supabase
-                add_password(service, username, password)
+                if not is_duplicate_entry(service, username, user_id):
+                    add_password(service, username, password)
 
         return {
             "success": True,
-            "message": f"Successfully imported accounts from: {path}",
+            "message": f"Successfully imported stored credentials from: {path}",
         }
 
     except Exception as e:

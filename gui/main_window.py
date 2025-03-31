@@ -234,7 +234,7 @@ class MainWindow(QMainWindow):
                 return
 
             result = import_passwords(selected_file)
-            QMessageBox.information(self, "Import Status", result)
+            QMessageBox.information(self, "Import Status", result["message"])
 
         except FileNotFoundError:
             QMessageBox.warning(self, "Import Error", "File not found.")
