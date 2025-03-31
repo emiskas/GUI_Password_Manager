@@ -6,16 +6,29 @@ import qrcode
 from components.password_table import PasswordTable
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import (QApplication, QDialog, QFileDialog, QLabel,
-                             QMainWindow, QMessageBox, QPushButton,
-                             QVBoxLayout, QWidget)
+from PyQt5.QtWidgets import (
+    QApplication,
+    QDialog,
+    QFileDialog,
+    QLabel,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from gui.dialogs.login import LoginDialog
 from gui.dialogs.password import AddPasswordDialog
 from modules.auth import get_current_user, log_out
 from modules.supabase_client import supabase
-from modules.utils import (decrypt_password, export_passwords, get_user_id,
-                           import_passwords, list_passwords)
+from modules.utils import (
+    decrypt_password,
+    export_passwords,
+    get_user_id,
+    import_passwords,
+    list_passwords,
+)
 
 
 class QRCodeDialog(QDialog):
@@ -191,10 +204,12 @@ class MainWindow(QMainWindow):
     def display_passwords(self):
         """Display a table of stored passwords."""
         try:
-            password_list = list_passwords()
+            response = list_passwords()
 
-            if not isinstance(password_list, list):
-                raise ValueError("Unexpected data format received.")
+            if not response["success"]:
+                raise ValueError(response["message"])
+
+            password_list = response["data"]
 
             if not password_list:
                 QMessageBox.information(
@@ -232,7 +247,7 @@ class MainWindow(QMainWindow):
                 return
 
             result = import_passwords(selected_file)
-            QMessageBox.information(self, "Import Status", result)
+            QMessageBox.information(self, "Import Status", result["message"])
 
         except FileNotFoundError:
             QMessageBox.warning(self, "Import Error", "File not found.")
@@ -255,7 +270,11 @@ class MainWindow(QMainWindow):
             else:
                 result = export_passwords(decrypt=True)
 
-            QMessageBox.information(self, "Export Status", result)
+            if result["success"]:
+                QMessageBox.information(self, "Export Status", result["message"])
+            else:
+                QMessageBox.critical(self, "Export Error", result["message"])
+
         except Exception as e:
             QMessageBox.critical(self, "Export Error", f"Failed to export: {str(e)}")
 

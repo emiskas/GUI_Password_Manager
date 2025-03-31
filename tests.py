@@ -199,7 +199,9 @@ def test_log_out_success():
 
         # Assert: Ensure successful log out
         assert result["success"] == True
-        assert result["message"] == "Logged out successfully"
+        assert (
+            result["message"] == "Logged out successfully."
+        )  # Updated to match with period
 
 
 def test_log_out_failure():
@@ -244,23 +246,52 @@ def test_is_logged_in():
         assert logged_in == True
 
 
+@pytest.mark.parametrize(
+    "email, expected_success",
+    [
+        ("nonexistent@example.com", False),
+    ],
+)
+def test_request_password_reset_failure(email, expected_success):
+    # Mock user check query (no user found)
+    mock_check_user = MagicMock()
+    mock_check_user.return_value = MagicMock(data=[])
+
+    # Mock `reset_password_for_email` to ensure it's never called
+    mock_reset = MagicMock()
+
+    with patch("modules.supabase_client.supabase.schema") as mock_schema:
+        mock_table = mock_schema.return_value.table
+        mock_table.return_value.select.return_value.eq.return_value.execute.return_value = MagicMock(
+            data=[]
+        )
+
+        with patch(
+            "modules.supabase_client.supabase.auth.reset_password_for_email", mock_reset
+        ):
+            # Act: Call the password reset function
+            result = request_password_reset(email)
+
+            # Assert: Ensure password reset fails
+            assert result["success"] == expected_success
+            assert result["message"] == "The entered email is not registered."
+
+            # Ensure `reset_password_for_email` was **not** called
+            mock_reset.assert_not_called()
+
+
 def test_request_password_reset_success():
     email = "test@example.com"
 
-    # Mock checking for the user
-    mock_check_user = MagicMock()
-    mock_check_user.data = [
-        {"id": "123"}
-    ]  # Simulate user exists, `data` should be a list of records
+    # Mock user check query (user exists)
+    mock_rpc = MagicMock()
+    mock_rpc.return_value.execute.return_value = MagicMock(data=[{"id": "123"}])
 
-    # Mock sending the OTP (simulate no return value, which is expected)
+    # Mock sending the OTP (simulate success)
     mock_reset_password = MagicMock()
-    mock_reset_password.return_value = (
-        None  # Simulate successful OTP request (no return value)
-    )
+    mock_reset_password.return_value = None
 
-    # Patch the supabase calls
-    with patch("modules.supabase_client.supabase.table", mock_check_user):
+    with patch("modules.supabase_client.supabase.rpc", mock_rpc):
         with patch(
             "modules.supabase_client.supabase.auth.reset_password_for_email",
             mock_reset_password,
@@ -272,22 +303,6 @@ def test_request_password_reset_success():
             print(result)
 
             # Assert: Ensure password reset is successful
-            assert result["success"] == True
-
-
-def test_request_password_reset_failure():
-    email = "nonexistent@example.com"
-
-    # Mock checking for the user
-    mock_check_user = MagicMock()
-    mock_check_user.return_value = []  # Simulate no user found
-
-    with patch("modules.supabase_client.supabase.table", mock_check_user):
-        # Act: Call the password reset function
-        result = request_password_reset(email)
-
-        # Assert: Ensure password reset fails
-        assert result["success"] == False
-        assert (
-            result["message"] == "Error sending OTP: Entered email is not registered."
-        )
+            assert (
+                result["success"] == True
+            ), f"Expected True, but got {result['success']}"

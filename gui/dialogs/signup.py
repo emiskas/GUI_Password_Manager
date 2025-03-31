@@ -1,7 +1,13 @@
 import re
 
-from PyQt5.QtWidgets import (QDialog, QLabel, QLineEdit, QMessageBox,
-                             QPushButton, QVBoxLayout)
+from PyQt5.QtWidgets import (
+    QDialog,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+)
 
 from modules.auth import sign_up
 
@@ -12,22 +18,28 @@ class SignUpDialog(QDialog):
         self.setWindowTitle("Sign Up")
         self.setGeometry(400, 200, 300, 200)
 
+        # Layout setup
         layout = QVBoxLayout()
 
+        # Email
         self.email_label = QLabel("Email:")
         self.email_input = QLineEdit()
 
+        # Password
         self.password_label = QLabel("Password:")
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.Password)
 
+        # Confirm Password
         self.confirm_password_label = QLabel("Confirm Password:")
         self.confirm_password_input = QLineEdit()
         self.confirm_password_input.setEchoMode(QLineEdit.Password)
 
+        # Sign Up Button
         self.signup_button = QPushButton("Sign Up")
         self.signup_button.clicked.connect(self.handle_signup)
 
+        # Add widgets to layout
         layout.addWidget(self.email_label)
         layout.addWidget(self.email_input)
         layout.addWidget(self.password_label)
@@ -43,33 +55,67 @@ class SignUpDialog(QDialog):
         password = self.password_input.text().strip()
         confirm_password = self.confirm_password_input.text().strip()
 
-        # Email validation
+        # Run validation checks
+        if not self.validate_email(email):
+            return
+        if not self.validate_fields(email, password):
+            return
+        if not self.validate_password_match(password, confirm_password):
+            return
+        if not self.validate_password_strength(password):
+            return
+
+        # Attempt to sign up
+        self.attempt_signup(email, password)
+
+    def validate_email(self, email):
+        """Validate email format."""
         email_regex = r"^[\w\.-]+@[\w\.-]+\.\w+$"
         if not re.match(email_regex, email):
             QMessageBox.warning(self, "Error", "Invalid email format.")
-            return
+            return False
+        return True
 
+    def validate_fields(self, email, password):
+        """Check if email and password are not empty."""
         if not email or not password:
             QMessageBox.warning(self, "Error", "Email and password cannot be empty.")
-            return
+            return False
+        return True
 
+    def validate_password_match(self, password, confirm_password):
+        """Check if passwords match."""
         if password != confirm_password:
             QMessageBox.warning(self, "Error", "Passwords do not match.")
-            return
+            return False
+        return True
 
-        # Strong password check
+    def validate_password_strength(self, password):
+        """Check password strength."""
         if len(password) < 8:
             QMessageBox.warning(
                 self, "Error", "Password must be at least 8 characters long."
             )
-            return
-
+            return False
         if not any(char.isdigit() for char in password):
             QMessageBox.warning(
                 self, "Error", "Password must contain at least one number."
             )
-            return
+            return False
+        if not any(char.isalpha() for char in password):
+            QMessageBox.warning(
+                self, "Error", "Password must contain at least one letter."
+            )
+            return False
+        if not any(char in "!@#$%^&*()_+" for char in password):
+            QMessageBox.warning(
+                self, "Error", "Password must contain at least one special character."
+            )
+            return False
+        return True
 
+    def attempt_signup(self, email, password):
+        """Attempt to sign up with provided credentials."""
         try:
             result = sign_up(email, password)
             if (
