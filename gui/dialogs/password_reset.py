@@ -1,5 +1,11 @@
-from PyQt5.QtWidgets import (QDialog, QLabel, QLineEdit, QMessageBox,
-                             QPushButton, QVBoxLayout)
+from PyQt5.QtWidgets import (
+    QDialog,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+)
 
 from modules.auth import request_password_reset, verify_otp_and_reset_password
 

@@ -1,5 +1,11 @@
-from PyQt5.QtWidgets import (QDialog, QLabel, QLineEdit, QMessageBox,
-                             QPushButton, QVBoxLayout)
+from PyQt5.QtWidgets import (
+    QDialog,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+)
 
 from gui.dialogs.password_reset import PasswordResetDialog
 from gui.dialogs.signup import SignUpDialog

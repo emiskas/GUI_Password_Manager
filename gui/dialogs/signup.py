@@ -1,7 +1,13 @@
 import re
 
-from PyQt5.QtWidgets import (QDialog, QLabel, QLineEdit, QMessageBox,
-                             QPushButton, QVBoxLayout)
+from PyQt5.QtWidgets import (
+    QDialog,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+)
 
 from modules.auth import sign_up
 

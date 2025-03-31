@@ -1,9 +1,15 @@
-from PyQt5.QtWidgets import (QApplication, QDialog, QLabel, QLineEdit,
-                             QMessageBox, QPushButton, QVBoxLayout)
+from PyQt5.QtWidgets import (
+    QApplication,
+    QDialog,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+)
 
 from modules.supabase_client import supabase
-from modules.utils import (add_password, encrypt_password, generate_password,
-                           get_user_id)
+from modules.utils import add_password, encrypt_password, generate_password, get_user_id
 
 
 class BasePasswordDialog(QDialog):

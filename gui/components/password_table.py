@@ -1,6 +1,12 @@
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QApplication, QDialog, QMessageBox, QPushButton,
-                             QTableWidget, QTableWidgetItem)
+from PyQt5.QtWidgets import (
+    QApplication,
+    QDialog,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+)
 
 from gui.dialogs.password import UpdatePasswordDialog
 from modules.supabase_client import supabase

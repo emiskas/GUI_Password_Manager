@@ -148,7 +148,10 @@ def add_password(service_name, username, plain_password):
             return {"success": False, "message": f"Database error: {str(e)}"}
 
     else:
-        return {"success": False, "message": f"Username {username} for the service {service_name} already exists."}
+        return {
+            "success": False,
+            "message": f"Username {username} for the service {service_name} already exists.",
+        }
 
 
 def retrieve_password(service_name):
@@ -325,9 +328,7 @@ def import_passwords(path):
     user_id_response = get_user_id()
 
     if not user_id_response["success"]:
-        return (
-            user_id_response
-        )
+        return user_id_response
 
     user_id = user_id_response["user_id"]
 

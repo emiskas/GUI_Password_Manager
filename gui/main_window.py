@@ -6,16 +6,29 @@ import qrcode
 from components.password_table import PasswordTable
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import (QApplication, QDialog, QFileDialog, QLabel,
-                             QMainWindow, QMessageBox, QPushButton,
-                             QVBoxLayout, QWidget)
+from PyQt5.QtWidgets import (
+    QApplication,
+    QDialog,
+    QFileDialog,
+    QLabel,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from gui.dialogs.login import LoginDialog
 from gui.dialogs.password import AddPasswordDialog
 from modules.auth import get_current_user, log_out
 from modules.supabase_client import supabase
-from modules.utils import (decrypt_password, export_passwords, get_user_id,
-                           import_passwords, list_passwords)
+from modules.utils import (
+    decrypt_password,
+    export_passwords,
+    get_user_id,
+    import_passwords,
+    list_passwords,
+)
 
 
 class QRCodeDialog(QDialog):
