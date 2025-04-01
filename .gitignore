@@ -51,6 +51,7 @@ build/
 *.so
 *.exe
 *.dll
+.spec
 
 # Ignore other temporary or backup files
 *.swp
