@@ -25,7 +25,7 @@ $ source .venv/bin/activate
 
 - #### For Windows:
 ```
-$ .\venv\Scripts\activate
+.\venv\Scripts\activate
 ```
 
 ### 4. Install the required packages:
@@ -35,7 +35,14 @@ $ .\venv\Scripts\activate
 
 Running the Application
 ===
- To start the application, you simply run the main_window.py file inside /GUI_Password_Manager/gui/. After that, you may register an account and start using the application.
+### Using the executable
+- #### Linux (assuming you are in the project root directory):
+```
+$ ./Linux_executable/password-manager
+```
+
+### Using Python
+To start the application, you simply run the main_window.py file inside /GUI_Password_Manager/gui/
 
 Software dependencies
 ===
@@ -50,3 +57,4 @@ pycryptodome is a self-contained Python package for cryptographic operations. It
 cryptography is a package designed to provide both high-level recipes and low-level cryptographic primitives to Python developers. It’s focused on offering a robust, secure, and easy-to-use API for a variety of cryptographic tasks, including key generation, encryption, and hashing. cryptography is regularly updated to meet the latest standards and security practices in the field.
 
 **For the full list of software dependencies see requirements.txt.**
+
