@@ -3,7 +3,7 @@ import sys
 from io import BytesIO
 
 import qrcode
-from components.password_table import PasswordTable
+from gui.components.password_table import PasswordTable
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import (
