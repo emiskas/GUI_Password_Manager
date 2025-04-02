@@ -3,7 +3,6 @@ import sys
 from io import BytesIO
 
 import qrcode
-from gui.components.password_table import PasswordTable
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import (
@@ -18,6 +17,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from gui.components.password_table import PasswordTable
 from gui.dialogs.login import LoginDialog
 from gui.dialogs.password import AddPasswordDialog
 from modules.auth import get_current_user, log_out
@@ -124,8 +124,12 @@ class MainWindow(QMainWindow):
         try:
             log_out()
             QMessageBox.information(self, "Logged Out", "You have been logged out.")
+
+            login_dialog = LoginDialog()
+
             self.close()
-            QApplication.quit()
+
+            login_dialog.exec_()
 
         except Exception as e:
             QMessageBox.critical(self, "Logout Error", f"Failed to log out: {str(e)}")
