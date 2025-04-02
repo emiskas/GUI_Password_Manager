@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (
 
 from gui.dialogs.password import UpdatePasswordDialog
 from modules.supabase_client import supabase
-from modules.utils import decrypt_password
+from modules.utils import decrypt_password, get_user_id
 
 
 class PasswordTable(QTableWidget):
@@ -97,6 +97,13 @@ class PasswordTable(QTableWidget):
 
     def handle_view_click(self, row):
         """Handle the View button click to fetch and decrypt password from Supabase."""
+        user_id_response = get_user_id()
+
+        if not user_id_response["success"]:
+            return user_id_response
+
+        user_id = user_id_response["user_id"]
+
         if row < 0 or row >= self.rowCount():
             self.show_error_message("Invalid row selection.")
             return
@@ -114,7 +121,7 @@ class PasswordTable(QTableWidget):
 
         try:
             # Fetch encrypted password data
-            response = self.fetch_password_data(service, username)
+            response = self.fetch_password_data(service, username, user_id)
 
             if not response or not response.data:
                 QApplication.restoreOverrideCursor()
@@ -163,12 +170,13 @@ class PasswordTable(QTableWidget):
             QApplication.restoreOverrideCursor()
             self.show_error_message(f"Failed to retrieve password: {str(e)}")
 
-    def fetch_password_data(self, service, username):
+    def fetch_password_data(self, service, username, user_id):
         """Fetch encrypted password data from the database."""
         try:
             return (
                 supabase.table("passwords")
                 .select("encrypted_password, user_id")
+                .eq("user_id", user_id)
                 .eq("service_name", service)
                 .eq("username", username)
                 .single()
