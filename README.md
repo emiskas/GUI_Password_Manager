@@ -13,36 +13,33 @@ git clone https://github.com/emiskas/GUI_Password_Manager.git
 
 ### 2. Create a virtual environment in /GUI_Password_Manager/:
 ```
-$ python3.12 -m venv .venv
+python3.12 -m venv .venv
 ```
 
 ### 3. Activate the virtual environment:
 
 - #### For Linux / Mac:
 ```
-$ source .venv/bin/activate
+source .venv/bin/activate
 ```
 
 - #### For Windows:
 ```
-.\venv\Scripts\activate
+.\.venv\Scripts\activate
 ```
 
 ### 4. Install the required packages:
 ```
-(venv) $ pip install -r requirements.txt
+(venv) pip install -r requirements.txt
 ```
 
 Running the Application
 ===
-### Using the executable
-- #### Linux (assuming you are in the project root directory):
-```
-$ ./Linux_executable/password-manager
-```
-
 ### Using Python
 To start the application, you simply run the main_window.py file inside /GUI_Password_Manager/gui/
+
+### Using the executable
+There is an executable each for Windows and Linux in their own folders. You can simply run these.
 
 Software dependencies
 ===
