@@ -1,6 +1,7 @@
 import base64
 import datetime
 import os
+import sys
 from pathlib import Path
 
 from Crypto.Cipher import AES
@@ -245,6 +246,20 @@ def is_base64(string):
         return False
 
 
+def get_base_path():
+    if getattr(sys, "frozen", False):
+        # The app is bundled (e.g., by PyInstaller)
+        return os.path.dirname(sys.executable)
+
+    else:
+        # The app is not bundled, run normally
+        return os.path.dirname(os.path.abspath(__file__))
+
+# Example: Create a folder next to the executable or script
+new_folder_path = os.path.join(get_base_path(), "backup")
+os.makedirs(new_folder_path, exist_ok=True)
+
+
 def export_passwords(decrypt=None):
     """Export passwords from Supabase to a local file."""
     user_id_response = get_user_id()
@@ -264,7 +279,7 @@ def export_passwords(decrypt=None):
     if not response.data:
         return {"success": False, "message": "No passwords found in Supabase."}
 
-    backup_dir = os.path.join(os.getcwd(), "backup")
+    backup_dir = os.path.join(get_base_path(), "backup")
     os.makedirs(backup_dir, exist_ok=True)
 
     today = datetime.datetime.now().strftime("%Y-%m-%d")
