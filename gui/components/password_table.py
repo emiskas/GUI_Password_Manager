@@ -30,10 +30,17 @@ class PasswordTable(QTableWidget):
             )  # Set column headers
 
             # Set table properties
-            self.setContentsMargins(0, 0, 0, 0)  # Ensure no margin around the table
-            self.horizontalHeader().setStretchLastSection(True)  # Stretch last column
-            self.horizontalHeader().setDefaultSectionSize(150)  # Adjust column sizes
-            self.verticalHeader().setVisible(False)  # Hide row headers
+            # Ensure no margin around the table
+            self.setContentsMargins(0, 0, 0, 0)
+
+            # Stretch last column
+            self.horizontalHeader().setStretchLastSection(True)
+
+            # Adjust column sizes
+            self.horizontalHeader().setDefaultSectionSize(150)
+
+            # Hide row headers
+            self.verticalHeader().setVisible(False)
 
             # Populate the table rows
             for row, password_entry in enumerate(password_list):
@@ -66,7 +73,9 @@ class PasswordTable(QTableWidget):
 
             # Add "View" button
             view_button = QPushButton("View")
-            view_button.clicked.connect(lambda _, r=row: self.handle_view_click(r))
+            view_button.clicked.connect(
+                lambda _, r=row: self.handle_view_click(r)
+            )
             self.setCellWidget(row, 2, view_button)
 
         except Exception as row_error:
@@ -96,7 +105,7 @@ class PasswordTable(QTableWidget):
         self.setHorizontalHeaderLabels(["Service", "Username", "Actions"])
 
     def handle_view_click(self, row):
-        """Handle the View button click to fetch and decrypt password from Supabase."""
+        """Handle View button click to fetch and decrypt password."""
         user_id_response = get_user_id()
 
         if not user_id_response["success"]:
@@ -117,7 +126,7 @@ class PasswordTable(QTableWidget):
             )
             return
 
-        QApplication.setOverrideCursor(Qt.WaitCursor)  # Show waiting cursor
+        QApplication.setOverrideCursor(Qt.WaitCursor)
 
         try:
             # Fetch encrypted password data
@@ -151,15 +160,17 @@ class PasswordTable(QTableWidget):
                 self.show_error_message("Invalid encryption key.")
                 return
 
-            # Decrypt password
-            decrypted_password = decrypt_password(encrypted_password, user_key)
+            decrypted_password = decrypt_password(
+                encrypted_password,
+                user_key
+            )
 
             if not decrypted_password:
                 QApplication.restoreOverrideCursor()
                 self.show_error_message("Failed to decrypt password.")
                 return
 
-            QApplication.restoreOverrideCursor()  # Restore cursor
+            QApplication.restoreOverrideCursor()
 
             # Open password update dialog
             self.show_update_password_dialog(
@@ -183,7 +194,9 @@ class PasswordTable(QTableWidget):
                 .execute()
             )
         except Exception as e:
-            self.show_error_message(f"Failed to retrieve password data: {str(e)}")
+            self.show_error_message(
+                f"Failed to retrieve password data: {str(e)}"
+            )
             return None
 
     def fetch_encryption_key(self, user_id):
@@ -197,7 +210,9 @@ class PasswordTable(QTableWidget):
                 .execute()
             )
         except Exception as e:
-            self.show_error_message(f"Failed to retrieve encryption key: {str(e)}")
+            self.show_error_message(
+                f"Failed to retrieve encryption key: {str(e)}"
+            )
             return None
 
     def show_error_message(self, message):

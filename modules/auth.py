@@ -6,23 +6,36 @@ from modules.utils import SALT_SIZE, derive_key
 
 
 def sign_up(email: str, password: str):
-    """Registers a new user with Supabase Authentication and stores encryption salt."""
+    """Register user with Supabase and store encryption salt."""
     try:
-        response = supabase.auth.sign_up({"email": email, "password": password})
+        response = supabase.auth.sign_up(
+            {"email": email, "password": password}
+        )
 
-        if not response or not hasattr(response, "user") or not response.user:
-            return {"success": False, "message": "Sign-up failed. Please try again."}
+        if (not response or
+                not hasattr(response, "user") or not response.user):
+            return {
+                "success": False,
+                "message": "Sign-up failed. Please try again."
+            }
+        # Get user ID
+        user_id = response.user.id
 
-        user_id = response.user.id  # Get user ID
-        salt = os.urandom(SALT_SIZE)  # Generate a new random salt
-        salt_encoded = base64.b64encode(salt).decode()  # Encode it for storage
+        # Generate a new random salt
+        salt = os.urandom(SALT_SIZE)
+
+        # Encode it for storage
+        salt_encoded = base64.b64encode(salt).decode()
 
         # Store the salt in a separate table `user_keys`
         supabase.table("user_keys").insert(
             {"user_id": user_id, "encryption_salt": salt_encoded}
         ).execute()
 
-        return {"success": True, "message": "Sign-up successful! You can now log in."}
+        return {
+            "success": True,
+            "message": "Sign-up successful! You can now log in."
+        }
 
     except Exception as e:
         return {"success": False, "message": f"Sign-up error: {str(e)}"}
@@ -109,7 +122,9 @@ def request_password_reset(email: str):
 
         return {
             "success": True,
-            "message": "Check your email inbox. If you can't see the one-time password, make sure to check the 'Spam' and 'Junk' folders.",
+            "message": "Check your email inbox. "
+                       "If you can't see the one-time password, "
+                       "make sure to check the 'Spam' and 'Junk' folders.",
         }
 
     except Exception as e:
@@ -134,12 +149,20 @@ def verify_otp_and_reset_password(email: str, otp: str, new_password: str):
             }
 
         # Update the password after OTP is verified
-        update_response = supabase.auth.update_user({"password": new_password})
+        update_response = supabase.auth.update_user(
+            {"password": new_password}
+        )
 
         if not update_response:
-            return {"success": False, "message": "Failed to update the password."}
+            return {
+                "success": False,
+                "message": "Failed to update the password."
+            }
 
         return {"success": True, "message": "Password reset successful."}
 
     except Exception as e:
-        return {"success": False, "message": f"Password reset error: {str(e)}"}
+        return {
+            "success": False,
+            "message": f"Password reset error: {str(e)}"
+        }

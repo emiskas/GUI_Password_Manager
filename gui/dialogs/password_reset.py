@@ -57,16 +57,28 @@ class PasswordResetDialog(QDialog):
         email = self.email_input.text().strip()
 
         if not email:
-            QMessageBox.warning(self, "Input Error", "Please enter your email.")
+            QMessageBox.warning(
+                self,
+                "Input Error",
+                "Please enter your email."
+            )
             return
 
         try:
             response = request_password_reset(email)
             if not response or "message" not in response:
                 raise ValueError("Invalid response from server.")
-            QMessageBox.information(self, "Password reset", response["message"])
+            QMessageBox.information(
+                self,
+                "Password reset",
+                response["message"]
+            )
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to send reset email: {str(e)}")
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Failed to send reset email: {str(e)}"
+            )
 
     def reset_password(self):
         """Verify OTP and reset the password."""
@@ -75,7 +87,11 @@ class PasswordResetDialog(QDialog):
         new_password = self.new_password_input.text().strip()
 
         if not email or not otp or not new_password:
-            QMessageBox.warning(self, "Input Error", "All fields are required.")
+            QMessageBox.warning(
+                self,
+                "Input Error",
+                "All fields are required."
+            )
             return
 
         try:
@@ -91,4 +107,8 @@ class PasswordResetDialog(QDialog):
                 QMessageBox.warning(self, "Error", response["message"])
 
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to reset password: {str(e)}")
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Failed to reset password: {str(e)}"
+            )
