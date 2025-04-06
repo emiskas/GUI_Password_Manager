@@ -52,10 +52,10 @@ class QRCodeDialog(QDialog):
     def display_qr_code(self, data):
         """Generate QR code and display it dynamically."""
         qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_Q,
             box_size=5,
-            border=4,
+            border=2,
         )
         qr.add_data(data)
         qr.make(fit=True)
@@ -146,6 +146,7 @@ class MainWindow(QMainWindow):
     def show_qr_code(self):
         """Show QR Code dialog for stored passwords with encryption."""
         user_id = get_user_id()
+        user_id = user_id["user_id"]
 
         if not user_id:
             QMessageBox.critical(
@@ -202,12 +203,38 @@ class MainWindow(QMainWindow):
                 encrypted_password,
                 user_key
             )
-            response.data[0]["encrypted_password"] = decrypted_password
-
-        passwords = response.data if response.data else []
+            response.data[0]["encrypted_password"] = decrypted_password[
+                "decrypted_password"
+            ]
 
         try:
-            qr_data = json.dumps(passwords)
+            passwords = []
+            for row in response.data:
+                passwords.append(f"Service name: {row["service_name"]} "
+                                 f"Username: {row["username"]} "
+                                 f"Password: {row["encrypted_password"]}")
+
+            for row in range(len(passwords)):
+                split_row = passwords[row].split(" ")
+                passwords[row] = split_row
+
+            for row in range(len(passwords)):
+                service = passwords[row][2]
+                username = passwords[row][4]
+                password = passwords[row][6]
+
+                passwords[row] = (
+                    f"Service name: {service}, "
+                    f"Username: {username}, "
+                    f"Password: {password}"
+                )
+
+            qr_data = "\n".join([
+                f"Entry {i + 1}:\n{entry}\n" + "-" * 30
+                for i, entry in enumerate(passwords)
+            ])
+
+            print(qr_data)
             self.qr_dialog = QRCodeDialog(qr_data)
             self.qr_dialog.exec_()
 
