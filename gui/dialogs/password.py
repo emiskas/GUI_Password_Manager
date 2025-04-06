@@ -104,7 +104,7 @@ class AddPasswordDialog(BasePasswordDialog):
                 return
 
             try:
-                result = add_password(service, username, password)
+                result = add_password(service, username, password)["message"]
             except supabase.PostgrestError as db_error:
                 QMessageBox.critical(
                     self,

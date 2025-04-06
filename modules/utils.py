@@ -154,7 +154,7 @@ def add_password(service_name, username, plain_password):
                 .execute()
             )
 
-            if "data" in insert_response:
+            if insert_response.data is not None:
                 return {
                     "success": True,
                     "message": "Password added successfully"
