@@ -306,8 +306,9 @@ class UpdatePasswordDialog(BasePasswordDialog):
 
             try:
                 encrypted_password = encrypt_password(new_password, user_key)
+                print(encrypted_password)
                 if (
-                    not encrypted_password or len(encrypted_password) < 10
+                    not encrypted_password or len(encrypted_password["encrypted_password"]) < 10
                 ):
                     QMessageBox.warning(
                         self,
