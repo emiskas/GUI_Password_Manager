@@ -1,11 +1,13 @@
 GUI Password Manager
 ===
-This is a simple desktop application that allows you to securely manage your account credentials for various services. 
+This is a simple desktop application that allows you to securely manage your account credentials for various services.
 
-Built with Python, the app utilizes **PyQt5** for the graphical user interface (GUI), **pycryptodome** for cryptographic operations, and **cryptography** for encryption. The application stores data in a PostgreSQL database hosted on **Supabase**, allowing users to access their credentials from any computer using their master login credentials (email/password).
+Built with **Python**, the app utilizes **PyQt5** for the graphical user interface (GUI), **pycryptodome** for cryptographic operations, and **cryptography** for encryption. The application stores data in a **PostgreSQL** database hosted on **Supabase**, enabling users to access their credentials from any device using their master login (email/password).
 
-Installing and setting up
-===
+It also leverages **Supabase’s built-in logging and monitoring tools** for audit trails and error tracking, reducing the need for manual log handling within the application.
+
+*The project is designed with security and portability in mind, featuring cross-platform support for Windows and Linux.*
+
 ### 1. Clone the repository:
 ```
 git clone https://github.com/emiskas/GUI_Password_Manager.git
