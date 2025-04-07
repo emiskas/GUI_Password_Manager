@@ -198,14 +198,10 @@ class MainWindow(QMainWindow):
                 .execute()
             )
 
-            encrypted_password = response.data[0]["encrypted_password"]
-            decrypted_password = decrypt_password(
-                encrypted_password,
-                user_key
-            )
-            response.data[0]["encrypted_password"] = decrypted_password[
-                "decrypted_password"
-            ]
+            for row in response.data:
+                encrypted = row["encrypted_password"]
+                decrypted = decrypt_password(encrypted, user_key)
+                row["encrypted_password"] = decrypted["decrypted_password"]
 
         try:
             passwords = []
