@@ -49,8 +49,9 @@ build/
 *.out
 *.o
 *.so
-*.exe
+# *.exe
 *.dll
+*.spec
 
 # Ignore other temporary or backup files
 *.swp

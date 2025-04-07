@@ -1,7 +1,7 @@
 import base64
 import datetime
 import os
-from pathlib import Path
+import sys
 
 from Crypto.Cipher import AES
 from cryptography.hazmat.primitives import hashes
@@ -16,7 +16,7 @@ ITERATIONS = 100000
 
 
 def is_duplicate_entry(service_name, username, user_id):
-    """Check if a service-name & username combo already exists for the user in Supabase."""
+    """Check if service/username pair exists for user in Supabase."""
     response = (
         supabase.table("passwords")
         .select("id")
@@ -29,7 +29,7 @@ def is_duplicate_entry(service_name, username, user_id):
 
 
 def derive_key(user_password: str, salt: bytes) -> bytes:
-    """Derives a 256-bit AES encryption key from the user's login password."""
+    """Derive a 256-bit AES key from the user's login password."""
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=KEY_SIZE,
@@ -48,7 +48,9 @@ def encrypt_password(plain_password, user_key):
     ciphertext, tag = cipher.encrypt_and_digest(plain_password.encode())
 
     # Store salt, nonce, tag, and ciphertext, then base64 encode it
-    encrypted_data = base64.b64encode(salt + cipher.nonce + tag + ciphertext).decode()
+    encrypted_data = base64.b64encode(
+        salt + cipher.nonce + tag + ciphertext
+    ).decode()
 
     return {"success": True, "encrypted_password": encrypted_data}
 
@@ -68,10 +70,16 @@ def decrypt_password(encrypted_password, user_key):
         cipher = AES.new(key, AES.MODE_EAX, nonce=nonce)
         decrypted_password = cipher.decrypt_and_verify(ciphertext, tag)
 
-        return {"success": True, "decrypted_password": decrypted_password.decode()}
+        return {
+            "success": True,
+            "decrypted_password": decrypted_password.decode()
+        }
 
     except ValueError:
-        return {"success": False, "message": "Decryption failed: Invalid key or data."}
+        return {
+            "success": False,
+            "message": "Decryption failed: Invalid key or data."
+        }
 
     except Exception as e:
         return {
@@ -92,7 +100,10 @@ def get_user_id():
         return {"success": True, "user_id": user.id}
 
     except Exception as e:
-        return {"success": False, "message": f"Error retrieving user: {str(e)}"}
+        return {
+            "success": False,
+            "message": f"Error retrieving user: {str(e)}"
+        }
 
 
 def add_password(service_name, username, plain_password):
@@ -100,7 +111,8 @@ def add_password(service_name, username, plain_password):
     user_id_response = get_user_id()
 
     if not user_id_response["success"]:
-        return user_id_response  # Return error if user ID retrieval failed
+        # Return error if user ID retrieval failed
+        return user_id_response
 
     user_id = user_id_response["user_id"]
 
@@ -133,14 +145,19 @@ def add_password(service_name, username, plain_password):
                         "user_id": user_id,
                         "service_name": service_name,
                         "username": username,
-                        "encrypted_password": encrypted_password["encrypted_password"],
+                        "encrypted_password": encrypted_password[
+                            "encrypted_password"
+                        ],
                     }
                 )
                 .execute()
             )
 
-            if "data" in insert_response:
-                return {"success": True, "message": "Password added successfully"}
+            if insert_response.data is not None:
+                return {
+                    "success": True,
+                    "message": "Password added successfully"
+                }
             else:
                 return {"success": False, "message": "Failed to add password"}
 
@@ -150,7 +167,8 @@ def add_password(service_name, username, plain_password):
     else:
         return {
             "success": False,
-            "message": f"Username {username} for the service {service_name} already exists.",
+            "message": f"Username {username} "
+                       f"for the service {service_name} already exists.",
         }
 
 
@@ -159,7 +177,8 @@ def retrieve_password(service_name):
     user_id_response = get_user_id()
 
     if not user_id_response["success"]:
-        return user_id_response  # Return error if user ID retrieval failed
+        # Return error if user ID retrieval failed
+        return user_id_response
 
     user_id = user_id_response["user_id"]
 
@@ -172,7 +191,10 @@ def retrieve_password(service_name):
     )
 
     if not key_response.get("data"):
-        return {"success": False, "message": "Error: Encryption key not found."}
+        return {
+            "success": False,
+            "message": "Error: Encryption key not found."
+        }
 
     user_key = key_response["data"].get("encryption_salt")
 
@@ -192,10 +214,14 @@ def retrieve_password(service_name):
 
     entry = response["data"][0]
 
-    decrypted_password = decrypt_password(entry["encrypted_password"], user_key)
+    decrypted_password = decrypt_password(
+        entry["encrypted_password"],
+        user_key
+    )
 
     if not decrypted_password["success"]:
-        return decrypted_password  # Return the decryption error
+        # Return the decryption error
+        return decrypted_password
 
     return {
         "success": True,
@@ -206,11 +232,12 @@ def retrieve_password(service_name):
 
 
 def list_passwords():
-    """List all stored passwords from Supabase for the logged-in user."""
+    """Fetch all stored passwords for the logged-in user."""
     user_id_response = get_user_id()
 
     if not user_id_response["success"]:
-        return user_id_response  # Return error if user ID retrieval failed
+        # Return error if user ID retrieval failed
+        return user_id_response
 
     user_id = user_id_response["user_id"]
 
@@ -245,12 +272,27 @@ def is_base64(string):
         return False
 
 
+def get_base_path():
+    if getattr(sys, "frozen", False):
+        # The app is bundled (e.g., by PyInstaller)
+        return os.path.dirname(sys.executable)
+
+    else:
+        # The app is not bundled, run normally
+        return os.path.dirname(os.path.abspath(__file__))
+
+# Example: Create a folder next to the executable or script
+new_folder_path = os.path.join(get_base_path(), "backup")
+os.makedirs(new_folder_path, exist_ok=True)
+
+
 def export_passwords(decrypt=None):
     """Export passwords from Supabase to a local file."""
     user_id_response = get_user_id()
 
     if not user_id_response["success"]:
-        return user_id_response  # Return error if user ID retrieval failed
+        # Return error if user ID retrieval failed
+        return user_id_response
 
     user_id = user_id_response["user_id"]
 
@@ -262,9 +304,12 @@ def export_passwords(decrypt=None):
     )
 
     if not response.data:
-        return {"success": False, "message": "No passwords found in Supabase."}
+        return {
+            "success": False,
+            "message": "No passwords found in Supabase."
+        }
 
-    backup_dir = os.path.join(os.getcwd(), "backup")
+    backup_dir = os.path.join(get_base_path(), "backup")
     os.makedirs(backup_dir, exist_ok=True)
 
     today = datetime.datetime.now().strftime("%Y-%m-%d")
@@ -290,11 +335,16 @@ def export_passwords(decrypt=None):
 
                     if not decrypted_password["success"]:
                         f.write(
-                            f"Error decrypting password for {entry['service_name']}: {decrypted_password['message']}\n"
+                            f"Error decrypting password for "
+                            f"{entry['service_name']}: "
+                            f"{decrypted_password['message']}\n"
                         )
                     else:
                         f.write(
-                            f"Service: {entry['service_name']}, Username: {entry['username']}, Password: {decrypted_password['decrypted_password']}\n"
+                            f"Service: {entry['service_name']}, "
+                            f"Username: {entry['username']}, "
+                            f"Password: "
+                            f"{decrypted_password['decrypted_password']}\n"
                         )
 
             return {
@@ -303,13 +353,18 @@ def export_passwords(decrypt=None):
             }
 
         except Exception as e:
-            return {"success": False, "message": f"Error exporting passwords: {str(e)}"}
+            return {
+                "success": False,
+                "message": f"Error exporting passwords: {str(e)}"
+            }
 
     try:
         with open(path, "w") as f:
             for entry in response.data:
                 f.write(
-                    f"Service: {entry['service_name']}, Username: {entry['username']}, Password: {entry['encrypted_password']}\n"
+                    f"Service: {entry['service_name']}, "
+                    f"Username: {entry['username']}, "
+                    f"Password: {entry['encrypted_password']}\n"
                 )
 
         return {
@@ -317,7 +372,10 @@ def export_passwords(decrypt=None):
             "message": f"Passwords exported successfully to {path}",
         }
     except Exception as e:
-        return {"success": False, "message": f"Error exporting passwords: {str(e)}"}
+        return {
+            "success": False,
+            "message": f"Error exporting passwords: {str(e)}"
+        }
 
 
 def import_passwords(path):
@@ -366,8 +424,12 @@ def import_passwords(path):
 
         return {
             "success": True,
-            "message": f"Successfully imported stored credentials from: {path}",
+            "message": f"Successfully imported stored credentials from: "
+                       f"{path}",
         }
 
     except Exception as e:
-        return {"success": False, "message": f"Error importing passwords: {str(e)}"}
+        return {
+            "success": False,
+            "message": f"Error importing passwords: {str(e)}"
+        }

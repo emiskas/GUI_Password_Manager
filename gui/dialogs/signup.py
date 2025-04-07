@@ -79,7 +79,11 @@ class SignUpDialog(QDialog):
     def validate_fields(self, email, password):
         """Check if email and password are not empty."""
         if not email or not password:
-            QMessageBox.warning(self, "Error", "Email and password cannot be empty.")
+            QMessageBox.warning(
+                self,
+                "Error",
+                "Email and password cannot be empty."
+            )
             return False
         return True
 
@@ -109,7 +113,9 @@ class SignUpDialog(QDialog):
             return False
         if not any(char in "!@#$%^&*()_+" for char in password):
             QMessageBox.warning(
-                self, "Error", "Password must contain at least one special character."
+                self,
+                "Error",
+                "Password must contain at least one special character."
             )
             return False
         return True

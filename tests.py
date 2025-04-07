@@ -30,7 +30,8 @@ def test_log_in_success(email, password, expected_success):
     ]
 
     with patch(
-        "modules.supabase_client.supabase.auth.sign_in_with_password", mock_sign_in
+        "modules.supabase_client.supabase.auth.sign_in_with_password",
+        mock_sign_in
     ):
         with patch("modules.supabase_client.supabase.table") as mock_table:
             mock_table.return_value.select.return_value.eq.return_value.execute.return_value = (
@@ -83,14 +84,17 @@ def test_sign_up_success(email, password, expected_success):
 def test_log_in_failure(email, password, expected_success):
     # Arrange: Mock Supabase authentication with invalid credentials
     mock_sign_in = MagicMock()
-    mock_sign_in.return_value = MagicMock(user=None)  # Simulate failed login
+
+    # Simulate failed login
+    mock_sign_in.return_value = MagicMock(user=None)
 
     # Mock the response from the user_keys table for the salt
     mock_salt_response = MagicMock()
     mock_salt_response.data = []
 
     with patch(
-        "modules.supabase_client.supabase.auth.sign_in_with_password", mock_sign_in
+        "modules.supabase_client.supabase.auth.sign_in_with_password",
+        mock_sign_in
     ):
         with patch("modules.supabase_client.supabase.table") as mock_table:
             mock_table.return_value.select.return_value.eq.return_value.execute.return_value = (
@@ -123,7 +127,8 @@ def test_log_in_no_salt(email, password, expected_success):
     mock_salt_response.data = []  # No encryption salt found
 
     with patch(
-        "modules.supabase_client.supabase.auth.sign_in_with_password", mock_sign_in
+        "modules.supabase_client.supabase.auth.sign_in_with_password",
+        mock_sign_in
     ):
         with patch("modules.supabase_client.supabase.table") as mock_table:
             mock_table.return_value.select.return_value.eq.return_value.execute.return_value = (
@@ -150,7 +155,8 @@ def test_log_in_invalid(email, password, expected_success):
     mock_sign_in.return_value = None  # Simulate failed login
 
     with patch(
-        "modules.supabase_client.supabase.auth.sign_in_with_password", mock_sign_in
+        "modules.supabase_client.supabase.auth.sign_in_with_password",
+        mock_sign_in
     ):
         # Act: Call the log_in function
         result = log_in(email, password)
@@ -173,7 +179,8 @@ def test_log_in_missing_salt():
     mock_salt_response.data = []  # Simulate missing salt
 
     with patch(
-        "modules.supabase_client.supabase.auth.sign_in_with_password", mock_sign_in
+        "modules.supabase_client.supabase.auth.sign_in_with_password",
+        mock_sign_in
     ):
         with patch("modules.supabase_client.supabase.table") as mock_table:
             mock_table.return_value.select.return_value.eq.return_value.execute.return_value = (
@@ -193,7 +200,10 @@ def test_log_out_success():
     mock_sign_out = MagicMock()
     mock_sign_out.return_value = True
 
-    with patch("modules.supabase_client.supabase.auth.sign_out", mock_sign_out):
+    with patch(
+            "modules.supabase_client.supabase.auth.sign_out",
+            mock_sign_out
+    ):
         # Act: Call the log_out function
         result = log_out()
 
@@ -209,7 +219,10 @@ def test_log_out_failure():
     mock_sign_out = MagicMock()
     mock_sign_out.side_effect = Exception("Unexpected error")
 
-    with patch("modules.supabase_client.supabase.auth.sign_out", mock_sign_out):
+    with patch(
+            "modules.supabase_client.supabase.auth.sign_out",
+            mock_sign_out
+    ):
         # Act: Call the log_out function
         result = log_out()
 
@@ -224,7 +237,10 @@ def test_get_current_user():
     mock_get_user = MagicMock()
     mock_get_user.return_value = mock_user
 
-    with patch("modules.supabase_client.supabase.auth.get_user", mock_get_user):
+    with patch(
+            "modules.supabase_client.supabase.auth.get_user",
+            mock_get_user
+    ):
         # Act: Call the get_current_user function
         user = get_current_user()
 
@@ -238,7 +254,10 @@ def test_is_logged_in():
     mock_get_user = MagicMock()
     mock_get_user.return_value = MagicMock(id="123", email="test@example.com")
 
-    with patch("modules.supabase_client.supabase.auth.get_user", mock_get_user):
+    with patch(
+            "modules.supabase_client.supabase.auth.get_user",
+            mock_get_user
+    ):
         # Act: Check if the user is logged in
         logged_in = is_logged_in()
 
@@ -267,7 +286,8 @@ def test_request_password_reset_failure(email, expected_success):
         )
 
         with patch(
-            "modules.supabase_client.supabase.auth.reset_password_for_email", mock_reset
+            "modules.supabase_client.supabase.auth.reset_password_for_email",
+            mock_reset
         ):
             # Act: Call the password reset function
             result = request_password_reset(email)
@@ -285,7 +305,9 @@ def test_request_password_reset_success():
 
     # Mock user check query (user exists)
     mock_rpc = MagicMock()
-    mock_rpc.return_value.execute.return_value = MagicMock(data=[{"id": "123"}])
+    mock_rpc.return_value.execute.return_value = MagicMock(
+        data=[{"id": "123"}]
+    )
 
     # Mock sending the OTP (simulate success)
     mock_reset_password = MagicMock()

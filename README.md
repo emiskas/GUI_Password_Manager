@@ -13,29 +13,35 @@ git clone https://github.com/emiskas/GUI_Password_Manager.git
 
 ### 2. Create a virtual environment in /GUI_Password_Manager/:
 ```
-$ python3.12 -m venv .venv
+python3.12 -m venv .venv
 ```
 
 ### 3. Activate the virtual environment:
 
 - #### For Linux / Mac:
 ```
-$ source .venv/bin/activate
+source .venv/bin/activate
 ```
 
 - #### For Windows:
 ```
-$ .\venv\Scripts\activate
+.\.venv\Scripts\activate
 ```
 
 ### 4. Install the required packages:
 ```
-(venv) $ pip install -r requirements.txt
+(venv) pip install -r requirements.txt
 ```
 
 Running the Application
 ===
- To start the application, you simply run the main_window.py file inside /GUI_Password_Manager/gui/. After that, you may register an account and start using the application.
+### Using Python
+To start the application, simply run the main_window.py file inside /GUI_Password_Manager/gui/
+
+### Using the executable
+There is an executable each for Windows and Linux in their own folders. You can simply run these. 
+
+*Recommended: If you do use the executable, put it into a seperate folder, because the application will create an additional backup folder*
 
 Software dependencies
 ===
@@ -50,3 +56,4 @@ pycryptodome is a self-contained Python package for cryptographic operations. It
 cryptography is a package designed to provide both high-level recipes and low-level cryptographic primitives to Python developers. It’s focused on offering a robust, secure, and easy-to-use API for a variety of cryptographic tasks, including key generation, encryption, and hashing. cryptography is regularly updated to meet the latest standards and security practices in the field.
 
 **For the full list of software dependencies see requirements.txt.**
+

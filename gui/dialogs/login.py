@@ -36,7 +36,9 @@ class LoginDialog(QDialog):
         self.signup_button.clicked.connect(self.open_signup_dialog)
 
         self.forgot_password_button = QPushButton("Forgot Password?")
-        self.forgot_password_button.clicked.connect(self.open_reset_password_dialog)
+        self.forgot_password_button.clicked.connect(
+            self.open_reset_password_dialog
+        )
 
         layout.addWidget(self.email_label)
         layout.addWidget(self.email_input)
@@ -64,7 +66,8 @@ class LoginDialog(QDialog):
             except TimeoutError:
                 self.show_error(
                     "Connection Error",
-                    "Authentication service timed out. Please try again later.",
+                    "Authentication service timed out. "
+                    "Please try again later.",
                 )
                 return
 
@@ -76,27 +79,40 @@ class LoginDialog(QDialog):
 
             if not isinstance(response, dict):
                 self.show_error(
-                    "System Error", "Invalid response from authentication service."
+                    "System Error",
+                    "Invalid response from authentication service."
                 )
                 return
 
             if response.get("success"):
-                self.accept()  # Close the dialog and proceed
+                self.accept()
             else:
-                error_message = response.get("message", "Unknown error occurred")
+                error_message = response.get(
+                    "message",
+                    "Unknown error occurred"
+                )
                 self.handle_login_failure(error_message)
 
         except Exception as e:
-            self.show_error("System Error", f"An unexpected error occurred: {str(e)}")
+            self.show_error(
+                "System Error",
+                f"An unexpected error occurred: {str(e)}"
+            )
 
     def validate_inputs(self, email, password):
         """Validate user inputs."""
         if not email or not password:
-            self.show_warning("Input Error", "Please enter email and password.")
+            self.show_warning(
+                "Input Error",
+                "Please enter email and password."
+            )
             return False
 
         if len(password) < 8:
-            self.show_warning("Input Error", "Password must be at least 8 characters.")
+            self.show_warning(
+                "Input Error",
+                "Password must be at least 8 characters."
+            )
             return False
 
         return True
@@ -118,7 +134,8 @@ class LoginDialog(QDialog):
             self.password_input.clear()
             self.password_input.setFocus()
 
-        elif "not found" in error_message.lower() or "email" in error_message.lower():
+        elif ("not found" in error_message.lower() or
+              "email" in error_message.lower()):
             self.email_input.setFocus()
 
     def open_signup_dialog(self):
@@ -128,7 +145,10 @@ class LoginDialog(QDialog):
             signup_dialog.exec_()
 
         except Exception as e:
-            self.show_error("Dialog Error", f"Failed to open signup dialog: {str(e)}")
+            self.show_error(
+                "Dialog Error",
+                f"Failed to open signup dialog: {str(e)}"
+            )
 
     def open_reset_password_dialog(self):
         """Open the Password Reset dialog."""
@@ -137,5 +157,6 @@ class LoginDialog(QDialog):
             reset_dialog.exec_()
         except Exception as e:
             self.show_error(
-                "Dialog Error", f"Failed to open password reset dialog: {str(e)}"
+                "Dialog Error",
+                f"Failed to open password reset dialog: {str(e)}"
             )

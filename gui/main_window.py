@@ -3,7 +3,6 @@ import sys
 from io import BytesIO
 
 import qrcode
-from components.password_table import PasswordTable
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import (
@@ -18,6 +17,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from gui.components.password_table import PasswordTable
 from gui.dialogs.login import LoginDialog
 from gui.dialogs.password import AddPasswordDialog
 from modules.auth import get_current_user, log_out
@@ -52,10 +52,10 @@ class QRCodeDialog(QDialog):
     def display_qr_code(self, data):
         """Generate QR code and display it dynamically."""
         qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_Q,
             box_size=5,
-            border=4,
+            border=2,
         )
         qr.add_data(data)
         qr.make(fit=True)
@@ -80,6 +80,8 @@ class MainWindow(QMainWindow):
     def __init__(self, user_id):
         super().__init__()
         self.user_id = user_id
+        self.qr_dialog = None
+
         self.setWindowTitle("Password Manager")
         self.setGeometry(100, 100, 400, 200)
 
@@ -123,19 +125,35 @@ class MainWindow(QMainWindow):
         """Logs out the user and returns to the login screen."""
         try:
             log_out()
-            QMessageBox.information(self, "Logged Out", "You have been logged out.")
+            QMessageBox.information(
+                self,
+                "Logged Out", "You have been logged out."
+            )
+
+            login_dialog = LoginDialog()
+
             self.close()
-            QApplication.quit()
+
+            login_dialog.exec_()
 
         except Exception as e:
-            QMessageBox.critical(self, "Logout Error", f"Failed to log out: {str(e)}")
+            QMessageBox.critical(
+                self,
+                "Logout Error",
+                f"Failed to log out: {str(e)}"
+            )
 
     def show_qr_code(self):
-        """Show QR Code dialog with stored passwords with encryption option."""
+        """Show QR Code dialog for stored passwords with encryption."""
         user_id = get_user_id()
+        user_id = user_id["user_id"]
 
         if not user_id:
-            QMessageBox.critical(self, "Error", "No authenticated user found.")
+            QMessageBox.critical(
+                self,
+                "Error",
+                "No authenticated user found."
+            )
             return
 
         reply = QMessageBox.question(
@@ -162,9 +180,12 @@ class MainWindow(QMainWindow):
                 .execute()
             )
 
-            if not key_response.data or "encryption_salt" not in key_response.data:
+            if (not key_response.data
+                    or "encryption_salt" not in key_response.data):
                 QMessageBox.critical(
-                    self, "Encryption Error", "Could not retrieve encryption key."
+                    self,
+                    "Encryption Error",
+                    "Could not retrieve encryption key."
                 )
                 return
 
@@ -177,24 +198,54 @@ class MainWindow(QMainWindow):
                 .execute()
             )
 
-            encrypted_password = response.data[0]["encrypted_password"]
-            decrypted_password = decrypt_password(encrypted_password, user_key)
-            response.data[0]["encrypted_password"] = decrypted_password
-
-        passwords = response.data if response.data else []
+            for row in response.data:
+                encrypted = row["encrypted_password"]
+                decrypted = decrypt_password(encrypted, user_key)
+                row["encrypted_password"] = decrypted["decrypted_password"]
 
         try:
-            qr_data = json.dumps(passwords)
+            passwords = []
+            for row in response.data:
+                passwords.append(f"Service name: {row["service_name"]} "
+                                 f"Username: {row["username"]} "
+                                 f"Password: {row["encrypted_password"]}")
+
+            for row in range(len(passwords)):
+                split_row = passwords[row].split(" ")
+                passwords[row] = split_row
+
+            for row in range(len(passwords)):
+                service = passwords[row][2]
+                username = passwords[row][4]
+                password = passwords[row][6]
+
+                passwords[row] = (
+                    f"Service name: {service}, "
+                    f"Username: {username}, "
+                    f"Password: {password}"
+                )
+
+            qr_data = "\n".join([
+                f"Entry {i + 1}:\n{entry}\n" + "-" * 30
+                for i, entry in enumerate(passwords)
+            ])
+
             self.qr_dialog = QRCodeDialog(qr_data)
             self.qr_dialog.exec_()
 
         except json.JSONDecodeError:
             QMessageBox.critical(
-                self, "QR Error", "Failed to generate QR code due to invalid data."
+                self,
+                "QR Error",
+                "Failed to generate QR code due to invalid data."
             )
 
         except Exception as e:
-            QMessageBox.critical(self, "QR Error", f"Unexpected error: {str(e)}")
+            QMessageBox.critical(
+                self, 
+                "QR Error",
+                f"Unexpected error: {str(e)}"
+            )
 
     def open_add_password_dialog(self):
         """Open the dialog for adding a new password."""
@@ -228,7 +279,12 @@ class MainWindow(QMainWindow):
             dialog.exec_()
 
         except ValueError as ve:
-            QMessageBox.critical(self, "Data Error", f"Invalid data format: {str(ve)}")
+            QMessageBox.critical(
+                self, 
+                "Data Error", 
+                f"Invalid data format: {str(ve)}"
+            )
+            
         except Exception as e:
             QMessageBox.critical(
                 self, "Error", f"Failed to retrieve passwords: {str(e)}"
@@ -243,6 +299,7 @@ class MainWindow(QMainWindow):
                 "backup",
                 "Text Files (*.txt);;All Files (*)",
             )
+            
             if not selected_file:
                 return
 
@@ -251,8 +308,13 @@ class MainWindow(QMainWindow):
 
         except FileNotFoundError:
             QMessageBox.warning(self, "Import Error", "File not found.")
+            
         except Exception as e:
-            QMessageBox.critical(self, "Import Error", f"Failed to import: {str(e)}")
+            QMessageBox.critical(
+                self, 
+                "Import Error", 
+                f"Failed to import: {str(e)}"
+            )
 
     def handle_export(self):
         """Handle the export process with encryption option."""
@@ -271,12 +333,20 @@ class MainWindow(QMainWindow):
                 result = export_passwords(decrypt=True)
 
             if result["success"]:
-                QMessageBox.information(self, "Export Status", result["message"])
+                QMessageBox.information(
+                    self,
+                    "Export Status",
+                    result["message"]
+                )
             else:
                 QMessageBox.critical(self, "Export Error", result["message"])
 
         except Exception as e:
-            QMessageBox.critical(self, "Export Error", f"Failed to export: {str(e)}")
+            QMessageBox.critical(
+                self,
+                "Export Error",
+                f"Failed to export: {str(e)}"
+            )
 
 
 def main():
@@ -296,7 +366,9 @@ def main():
 
             else:
                 QMessageBox.critical(
-                    None, "Authentication Error", "User authentication failed."
+                    None,
+                    "Authentication Error",
+                    "User authentication failed."
                 )
                 sys.exit(1)
 
@@ -305,7 +377,9 @@ def main():
 
     except Exception as e:
         QMessageBox.critical(
-            None, "Application Error", f"An unexpected error occurred: {str(e)}"
+            None,
+            "Application Error",
+            f"An unexpected error occurred: {str(e)}"
         )
         sys.exit(1)
 
