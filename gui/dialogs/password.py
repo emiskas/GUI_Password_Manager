@@ -104,7 +104,13 @@ class AddPasswordDialog(BasePasswordDialog):
                 return
 
             try:
-                result = add_password(service, username, password)["message"]
+                add_password(service, username, password)
+
+                QMessageBox.information(
+                    self, "Success", f"Password for {service} added."
+                )
+                self.close()
+
             except supabase.PostgrestError as db_error:
                 QMessageBox.critical(
                     self,
@@ -112,6 +118,7 @@ class AddPasswordDialog(BasePasswordDialog):
                     f"Database connection failed: {str(db_error)}",
                 )
                 return
+
             except TimeoutError:
                 QMessageBox.critical(
                     self,
@@ -119,18 +126,6 @@ class AddPasswordDialog(BasePasswordDialog):
                     "Database connection timed out. Please try again.",
                 )
                 return
-
-            if "success" in result.lower():
-                QMessageBox.information(
-                    self, "Success", f"Password for {service} added."
-                )
-                self.close()
-            else:
-                QMessageBox.critical(
-                    self,
-                    "Error",
-                    f"Failed to add password: {result}"
-                )
 
         except Exception as e:
             QMessageBox.critical(
@@ -148,7 +143,7 @@ class UpdatePasswordDialog(BasePasswordDialog):
             user_id,
             service,
             username,
-            encrypted_password,
+            password,
             row,
             parent_table
     ):
@@ -175,9 +170,7 @@ class UpdatePasswordDialog(BasePasswordDialog):
         self.username_input = QLineEdit(username)
 
         self.password_label = QLabel("Password:")
-        self.password_input = QLineEdit(
-            encrypted_password["decrypted_password"]
-        )
+        self.password_input = QLineEdit(password)
         self.password_input.setEchoMode(QLineEdit.Password)
 
         # Buttons
@@ -214,7 +207,7 @@ class UpdatePasswordDialog(BasePasswordDialog):
             lambda: self.add_generated_password(self.password_input)
         )
         self.copy_button.clicked.connect(
-            lambda: self.copy_to_clipboard(encrypted_password)
+            lambda: self.copy_to_clipboard(password)
         )
         self.update_button.clicked.connect(self.update_password)
         self.delete_button.clicked.connect(self.delete_password)
@@ -306,7 +299,6 @@ class UpdatePasswordDialog(BasePasswordDialog):
 
             try:
                 encrypted_password = encrypt_password(new_password, user_key)
-                print(encrypted_password)
                 if (
                     not encrypted_password or len(encrypted_password["encrypted_password"]) < 10
                 ):
@@ -331,7 +323,7 @@ class UpdatePasswordDialog(BasePasswordDialog):
                         {
                             "service_name": new_service,
                             "username": new_username,
-                            "encrypted_password": encrypted_password,
+                            "encrypted_password": encrypted_password["encrypted_password"],
                         }
                     )
                     .eq("user_id", self.user_id)

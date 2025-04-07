@@ -234,7 +234,6 @@ class MainWindow(QMainWindow):
                 for i, entry in enumerate(passwords)
             ])
 
-            print(qr_data)
             self.qr_dialog = QRCodeDialog(qr_data)
             self.qr_dialog.exec_()
 

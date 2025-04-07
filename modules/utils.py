@@ -2,7 +2,6 @@ import base64
 import datetime
 import os
 import sys
-from pathlib import Path
 
 from Crypto.Cipher import AES
 from cryptography.hazmat.primitives import hashes

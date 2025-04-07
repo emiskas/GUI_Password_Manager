@@ -1,3 +1,5 @@
+import json
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QApplication,
@@ -138,6 +140,7 @@ class PasswordTable(QTableWidget):
                 return
 
             encrypted_password = response.data.get("encrypted_password")
+
             user_id = response.data.get("user_id")
 
             if not encrypted_password or not user_id:
@@ -163,7 +166,7 @@ class PasswordTable(QTableWidget):
             decrypted_password = decrypt_password(
                 encrypted_password,
                 user_key
-            )
+            )["decrypted_password"]
 
             if not decrypted_password:
                 QApplication.restoreOverrideCursor()
