@@ -38,12 +38,29 @@ source .venv/bin/activate
 Running the Application
 ===
 ### Using Python
-To start the application, simply run the main_window.py file inside /GUI_Password_Manager/gui/
+To start the application, simply run the main_window.py file inside /gui/
+
+```
+(venv) python gui/main_window.py
+```
 
 ### Using the executable
 There is an executable each for Windows and Linux in their own folders. You can simply run these. 
 
 *Recommended: If you do use the executable, put it into a seperate folder, because the application will create an additional backup folder*
+
+Running tests (using Python to run the application)
+===
+
+In the root directory of the project, run this command
+```
+(venv) pytest tests.py
+```
+
+Or for a more detailed view
+```
+(venv) pytest tests.py -v
+```
 
 Software dependencies
 ===
