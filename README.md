@@ -1,5 +1,8 @@
 GUI Password Manager
 ===
+
+### Disclaimer: This project is for display and will most likely not work due to Supabase automatically pausing the connection to the database if unused for a certain amount of time. If you do want to try it out, contact me directly.
+
 This is a simple desktop application that allows you to securely manage your account credentials for various services.
 
 Built with **Python**, the app utilizes **PyQt5** for the graphical user interface (GUI), **pycryptodome** for cryptographic operations, and **cryptography** for encryption. The application stores data in a **PostgreSQL** database hosted on **Supabase**, enabling users to access their credentials from any device using their master login (email/password).
